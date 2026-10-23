@@ -1,0 +1,58 @@
+# Node.js dependencies, build output and reports
+# Documentation sources and reviewed evidence are eligible for version control.
+# Generated diagram exports and local build/evidence scratch files remain ignored.
+docs/**/rendered/
+docs/**/images/
+docs/**/*.png
+docs/**/*.svg
+docs/**/*.pdf
+docs/**/build-manifest.json
+docs/**/verification.json
+docs/**/evidence/raw/
+docs/**/private/
+docs/**/secrets/
+node_modules/
+dist/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.key
+*.pem
+*.pfx
+*.p12
+
+# Runtime data and temporary artifacts
+uploads/
+.data/
+postgres-data/
+tmp/
+temp/
+__pycache__/
+*.py[cod]
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Generated LaTeX artifacts and intermediate exports
+*.aux
+*.toc
+*.lof
+*.lot
+*.out
+*.xdv
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.zip
