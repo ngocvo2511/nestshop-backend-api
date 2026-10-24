@@ -1,0 +1,132 @@
+\chapter{Functional Requirements}
+Each requirement below has its own ID and acceptance criteria. P0 items are mandatory for the MVP; P1 items are optional extensions.
+
+\section{Authentication and Authorization}
+\begin{longtable}{@{}p{44mm}p{109mm}@{}}
+\toprule
+ID / priority & Requirement and acceptance criteria \\
+\midrule
+\endfirsthead
+\toprule
+ID / priority & Requirement and acceptance criteria \\
+\midrule
+\endhead
+\textbf{FR-AUTH-001}\par Register\par (P0) & With valid unique email/password, create an active CUSTOMER account using a secure password hash. Duplicate email is rejected; no plaintext password is persisted or returned. Public registration cannot select a role. \\
+\textbf{FR-AUTH-002}\par Login\par (P0) & An active user with valid credentials receives access and refresh tokens. Invalid credentials return a generic 401-style error that does not reveal which field failed. \\
+\textbf{FR-AUTH-003}\par Refresh token\par (P0) & A valid, unexpired, \code{ACTIVE} refresh token yields a new access token and replacement refresh token. Rotation atomically marks the old token consumed and stores the replacement, so only one concurrent request can rotate a given token. Reuse of a token consumed by successful rotation is replay: reject it and revoke its whole family, requiring login. Tests cover concurrent rotation and consumed-token replay. \\
+\textbf{FR-AUTH-004}\par Logout\par (P0) & Logout atomically revokes the supplied/current token family with revocation reason \code{LOGOUT}. A logout-revoked token is rejected on ordinary reuse but is not classified as a new replay event; repeated/concurrent logout or refresh has safe conditional behavior and does not restore a token. Already-issued stateless access JWTs may remain valid until configured expiry. \\
+\textbf{FR-AUTH-005}\par Session security\par (P0) & Access and refresh lifetimes are environment configured and differ. Access tokens are stateless JWTs with a short configurable lifetime; logout/password change revoke refresh sessions but do not immediately invalidate already-issued access tokens. Refresh tokens are stored as hashes with family/session, \code{ACTIVE}/\code{REVOKED}/\code{EXPIRED} representation, \code{consumed_at}, \code{revoked_at}, and revocation reason (or equivalent metadata). Password change atomically revokes all families, including the current one, with a distinct reason. Expired tokens are rejected without rotation. Tests cover replay, logout-revoked, password-change-revoked, expired, and concurrent refresh behavior; no grace period, multi-tab synchronization, token-version check, or per-request session lookup is provided. \\
+\textbf{FR-USER-001}\par Protected identity\par (P0) & Missing, invalid, or expired access tokens are rejected; role and identity are derived only from verified server token claims. \\
+\textbf{FR-USER-002}\par Role authorization\par (P0) & ADMIN-only catalog/user/role operations and STAFF fulfillment operations return 403 to unauthorized roles. \\
+\textbf{FR-USER-003}\par Ownership enforcement\par (P0) & Customer A cannot read or mutate Customer B’s profile, cart, order (including shipping details), payment initiation, or status history. \\
+\textbf{FR-USER-004}\par Role management\par (P0) & Only ADMIN can view/manage user account role assignments through dedicated allowlisted operations. The public registration/profile APIs cannot do so. Each successful change atomically persists a role-change audit record containing actor user ID, affected user ID, old role, new role, and timestamp; tests must verify both the changed role and audit record. \\
+\bottomrule
+\end{longtable}
+
+\section{Profile and Password}
+\begin{longtable}{@{}p{44mm}p{109mm}@{}}
+\toprule
+ID / priority & Requirement and acceptance criteria \\
+\midrule
+\endfirsthead
+\toprule
+ID / priority & Requirement and acceptance criteria \\
+\midrule
+\endhead
+\textbf{FR-PROFILE-001}\par View profile\par (P0) & An authenticated user can view their own profile, including full name, phone number, and avatar URL if enabled. Profile viewing is a read-only operation, separate from updating a profile. Sensitive authentication data is not returned. \\
+\textbf{FR-PROFILE-002}\par Change password\par (P0) & The caller supplies current password plus a policy-valid replacement. Incorrect current password is rejected; successful change applies FR-AUTH-005 session revocation. \\
+\textbf{FR-PROFILE-003}\par Update profile\par (P0) & An authenticated user can update only their own allowlisted fields: full name, phone number, and avatar URL if enabled. Invalid phone/URL values and protected/mass-assigned fields are rejected or ignored consistently. Profile updates do not change shipping details already stored in an order. \\
+\bottomrule
+\end{longtable}
+
+\section{Catalog, Images and Inventory}
+\begin{longtable}{@{}p{44mm}p{109mm}@{}}
+\toprule
+ID / priority & Requirement and acceptance criteria \\
+\midrule
+\endfirsthead
+\toprule
+ID / priority & Requirement and acceptance criteria \\
+\midrule
+\endhead
+\textbf{FR-PROD-001}\par List/search/filter/sort\par (P0) & Guests/customers receive active products only. Allowlisted query parameters produce deterministic matching results. \\
+\textbf{FR-PROD-002}\par Offset pagination\par (P0) & Validated \code{offset}/\code{limit} are applied and the response includes items, offset, limit, and total. Invalid bounds fail validation. \\
+\textbf{FR-PROD-003}\par Product detail\par (P0) & An active product is returned; missing/inactive products do not disclose protected catalog data to public callers. \\
+\textbf{FR-PROD-004}\par Create product\par (P0) & ADMIN creates product with a positive integer VND price, initial non-negative integer stock, and active flag. Fractional, negative, binary-floating-point, or mass-assigned values are rejected. CUSTOMER/STAFF are forbidden. \\
+\textbf{FR-PROD-005}\par Update product\par (P0) & ADMIN updates allowlisted non-stock catalog fields. Direct stock modification is forbidden through general product update; every post-creation administrative stock change uses FR-INVENTORY-002. Invalid/mass-assigned fields do not persist. \\
+\textbf{FR-UPLOAD-001}\par Upload image\par (P0) & ADMIN uploads a product image through Multer. Only configured JPEG, PNG, or WebP files up to 5 MiB are accepted; unsafe names/types and oversize files are rejected. The API generates a non-guessable server-side filename, stores the relative image path in PostgreSQL, and returns a documented image URL/reference. If storage succeeds but the associated database operation fails, the API attempts to delete the orphaned file; a cleanup failure is safely logged with diagnostic context for manual cleanup. Failed validation or storage leaves no product-image reference; missing stored files return a safe not-found response. \\
+\textbf{FR-CAT-001}\par Category CRUD\par (P1) & ADMIN manages categories; active category browsing is public if categories are approved. \\
+\textbf{FR-INVENTORY-001}\par Inventory consistency\par (P0) & Product stock is never client-authoritative. System-managed checkout reservation, cancellation/expiry release, and transaction rollback use database transactions with row locks or conditional updates, so concurrent successful orders cannot oversell or make stock negative. \\
+\textbf{FR-INVENTORY-002}\par Admin stock adjustment\par (P0) & Only ADMIN may submit a documented signed integer quantity delta plus required reason; arbitrary stock-field mass assignment is forbidden. The transaction locks/conditionally updates the product, rejects a result below zero, and atomically persists an inventory-adjustment audit with product, actor ID, previous stock, new stock/delta, reason, and timestamp. Concurrent checkout/adjustment operations cannot lose updates or make stock negative. \\
+\bottomrule
+\end{longtable}
+
+\section{Orders and Staff Operations}
+\begin{longtable}{@{}p{44mm}p{109mm}@{}}
+\toprule
+ID / priority & Requirement and acceptance criteria \\
+\midrule
+\endfirsthead
+\toprule
+ID / priority & Requirement and acceptance criteria \\
+\midrule
+\endhead
+\textbf{FR-ORDER-001}\par Submit order\par (P0) & CUSTOMER submits nonempty product IDs/quantities and inline shipping details containing recipient name, contact phone number, and delivery address. The server validates the supplied shipping details, reloads products, calculates integer-VND line total as snapshotted unit price × quantity and the server-side order total as the sum of validated lines, and stores the recipient/contact/address details directly in the order with product name/unit price/line-total snapshots. It creates the order directly as \code{PENDING_PAYMENT} and reserves inventory atomically. Client amounts are never authoritative. Missing/invalid shipping details, fractional/invalid/negative amount, bad item, insufficient stock, inactive product, or transaction failure creates no partial order/stock change. Checkout does not require a saved address or an address ID. Stored shipping details belong to that order and remain independent of later profile changes. \\
+\textbf{FR-ORDER-002}\par Order history\par (P0) & CUSTOMER receives only own orders, details, payment state, and status history with documented pagination/filtering. \\
+\textbf{FR-ORDER-003}\par Staff order queue\par (P0) & STAFF/ADMIN can list the minimal fulfillment queue by current order status and inspect necessary order, item, address, payment summary, and history data. Creation-date range, compound filters, exports, and reporting are P1. \\
+\textbf{FR-ORDER-004}\par Fulfillment transition\par (P0) & STAFF with authorization and ADMIN can make only permitted fulfillment transitions and cannot alter payment status. Invalid transition is rejected. \\
+\textbf{FR-ORDER-005}\par Status history\par (P0) & Each order-status change persists actor ID or \code{SYSTEM}, previous status, new status, timestamp, and optional safe note. Customer can view history for own order; STAFF/ADMIN can view it for eligible orders. Advanced history filtering is P1. \\
+\bottomrule
+\end{longtable}
+
+\section{VNPay Sandbox Payments}
+\begin{longtable}{@{}p{44mm}p{109mm}@{}}
+\toprule
+ID / priority & Requirement and acceptance criteria \\
+\midrule
+\endfirsthead
+\toprule
+ID / priority & Requirement and acceptance criteria \\
+\midrule
+\endhead
+\textbf{FR-PAY-001}\par Create attempt/initiate payment\par (P0) & An authenticated owner may initiate payment only for an eligible \code{PENDING_PAYMENT} order. Creation is concurrency-safe: PostgreSQL locking/conditional updates plus a partial unique constraint/index allow at most one \code{PENDING} attempt per order. If a valid pending attempt already exists, the API returns/reuses its documented payment URL only while safely valid; otherwise it returns a documented conflict response and creates no new attempt. A new attempt may be created only after the prior attempt is genuinely \code{FAILED} or \code{EXPIRED} and the order remains eligible. The URL uses persisted integer-VND order total, never a client amount. Paid/cancelled/expired/foreign orders are rejected. Each attempt records an intended/configurable approximately 20-minute application expiry from creation, subject to safe VNPay Sandbox integration verification. \\
+\textbf{FR-PAY-002}\par Configured signed request\par (P0) & Merchant identifier, signing secret, return URL, IPN URL, locale/time zone, and sandbox/production environment settings are environment-configured. The API signs requests according to the current official VNPay specification; credentials are never hardcoded. \\
+\textbf{FR-PAY-003}\par Verified return/IPN\par (P0) & IPN processing verifies the official VNPay signature and validates provider order reference, amount, currency (\code{VND}), transaction data, and applicable result fields against persisted order/payment records. VNPay request/callback amount conversion and comparison follow the current official Sandbox specification; provider encoding and URL-expiry details require integration verification. A browser return URL alone never confirms payment. A valid applicable successful server callback alone makes one attempt \code{SUCCESS} and its order \code{PAID}; invalid, duplicate, inapplicable, and late callbacks are safely recorded for reconciliation without an unauthorized state change. \\
+\textbf{FR-PAY-004}\par Idempotency and failures\par (P0) & Duplicate, delayed, invalid, failed, cancelled, or mismatched callbacks are safely recorded/handled without duplicate business effects. Callback settlement locks the target payment/order (or uses an equivalent conditional update) in one transaction. A terminal attempt cannot be marked terminal merely to bypass the one-pending-attempt invariant. Successful payment cannot be repeated or arbitrarily set by client/staff/admin. ADMIN may inspect payment/reconciliation records but cannot edit provider results or settlement state; any future manual annotation is auditable and non-settling. Persist safe transaction references, response/result codes, verified VND amount/currency, relevant transaction data, receive time, and reconciliation outcome. \\
+\textbf{FR-PAY-005}\par Expiry and inventory\par (P0) & Order creation reserves stock; verified success confirms the reservation. The P0 in-process scheduler performs startup recovery and periodic scans for (a) pending attempts whose intended configurable approximately 20-minute application expiry is due and (b) orders whose configurable 60-minute reservation expiry is due. Attempt expiry safely marks only that attempt \code{EXPIRED}; a still-eligible order remains \code{PENDING_PAYMENT} with reservation intact and may receive a replacement attempt. Order expiry atomically expires any remaining pending attempt(s), transitions the order \code{EXPIRED}, writes history, and releases stock exactly once. Repeated scans/restarts cannot release stock twice. \\
+\bottomrule
+\end{longtable}
+
+\section{Email Notifications (P1)}
+\begin{longtable}{@{}p{44mm}p{109mm}@{}}
+\toprule
+ID / priority & Requirement and acceptance criteria \\
+\midrule
+\endfirsthead
+\toprule
+ID / priority & Requirement and acceptance criteria \\
+\midrule
+\endhead
+\textbf{FR-EMAIL-001}\par Notification events\par (P1) & In the same database transaction as registration, order creation, verified payment-result, expiration, or selected fulfillment state change, create a durable notification-event record with a unique event key. After that transaction commits, attempt delivery from the persisted event if SMTP is configured. Core events are welcome, order confirmation, verified payment success/failure, and expiration/cancellation where customer notification is enabled. \\
+\textbf{FR-EMAIL-002}\par Safe delivery\par (P1) & Recipient comes from the validated account email, not an arbitrary request field. Templates include a subject, plain text or HTML body, and only necessary non-sensitive data; no credentials, token, card, or secret is sent/logged. \\
+\textbf{FR-EMAIL-003}\par Graceful failure/idempotency\par (P1) & SMTP host/port/user/password/from address/timeouts are environment-configured. An event record has \code{PENDING}, \code{SENDING}, \code{SENT}, and \code{FAILED} delivery status, attempt count, and safe error/timestamp fields. Its unique event key prevents duplicate event creation across callbacks/restarts. After restart, the application finds eligible \code{PENDING} events; stale \code{SENDING} events become eligible after a documented timeout/lease. Conditional updates claim one event at a time, and retries are bounded/configurable. Timeouts/provider errors do not roll back an accepted order or verified payment. Deduplication is at-least-once event processing, not exactly-once SMTP delivery: a crash after provider acceptance but before \code{SENT} is persisted can result in a repeat message. No broker or separate worker is required. \\
+\bottomrule
+\end{longtable}
+
+\section{Cart and Common API Behavior}
+\begin{longtable}{@{}p{44mm}p{109mm}@{}}
+\toprule
+ID / priority & Requirement and acceptance criteria \\
+\midrule
+\endfirsthead
+\toprule
+ID / priority & Requirement and acceptance criteria \\
+\midrule
+\endhead
+\textbf{FR-CART-001}\par Manage cart\par (P1) & CUSTOMER can manage only their own cart and cart items. Checkout remains server-priced and stock-validated. \\
+\textbf{FR-API-001}\par Responses/errors\par (P0) & All endpoints follow one documented success envelope and one error shape containing safe message, status, code, and actionable validation detail where appropriate. \\
+\textbf{FR-API-002}\par Validation\par (P0) & DTO transformation/allowlisting validates body/query/route inputs; unexpected writable fields cannot change persisted state. \\
+\textbf{FR-API-003}\par Swagger\par (P0) & Swagger documents every endpoint, role/security requirement, principal DTO/schema, query/filter, multipart behavior, and expected errors. \\
+\textbf{FR-HEALTH-001}\par Health check\par (P0) & An unauthenticated documented endpoint returns lightweight health without secrets. \\
+\bottomrule
+\end{longtable}

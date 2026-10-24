@@ -1,0 +1,36 @@
+@startuml
+title SEQ-05 — View own profile
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Customer" as Caller
+control "UsersController" as Entry
+control "JwtAuthGuard" as AuthGuard
+control "UsersService" as Service
+database "PostgreSQL\nusers" as DB
+
+activate Caller
+Caller -> Entry: View own profile
+activate Entry
+Entry -> AuthGuard: Verify access token
+activate AuthGuard
+AuthGuard --> Entry: Return authentication outcome
+deactivate AuthGuard
+alt The access token is missing, invalid or expired
+  Entry --> Caller: Invalid or missing access token
+else The access token identifies an authenticated user
+  Entry -> Service: getProfile(userId)
+  activate Service
+  Service -> DB: Find own profile
+  activate DB
+  DB --> Service: Return profile
+  deactivate DB
+  Service --> Entry: Return profile
+  Entry --> Caller: Return profile
+  deactivate Service
+end
+deactivate Entry
+deactivate Caller
+@enduml

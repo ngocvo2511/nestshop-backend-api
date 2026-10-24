@@ -1,0 +1,83 @@
+\chapter{PlantUML Sequence Diagrams}
+
+This appendix presents all 32 business flows. P1 diagrams describe optional extensions.
+
+\section*{Grouped Index}
+
+\begin{itemize}
+
+\item Authentication and profiles: SEQ-01--07.
+
+\item Catalog, inventory and roles: SEQ-08--14; role changes: SEQ-32.
+
+\item Customer and Staff orders: SEQ-15--21.
+
+\item Payments, expiration and reconciliation: SEQ-22--27.
+
+\item Health: SEQ-28; optional P1 extensions: SEQ-29--31.
+
+\end{itemize}
+
+\diagram{SEQ-01 --- Register an account}{seq:01}{Guest registration validates input and duplicate email; public registration creates CUSTOMER only.\par\small Actor: Guest. Traceability: FR-AUTH-001; FR-API-001–002; UC-AUTH-001.}{images/sequence/SEQ-01-register.png}
+
+\diagram{SEQ-02 --- Log in}{seq:02}{Validate credentials and account activity; failures do not reveal which credential was incorrect.\par\small Actor: Guest. Traceability: FR-AUTH-002, FR-AUTH-005; UC-AUTH-002.}{images/sequence/SEQ-02-login.png}
+
+\diagram{SEQ-03 --- Refresh token}{seq:03}{Rotate atomically and distinguish consumed-token replay from ordinary revocation.\par\small Actor: Token holder. Traceability: FR-AUTH-003, FR-AUTH-005; UC-AUTH-003.}{images/sequence/SEQ-03-refresh-token.png}
+
+\diagram{SEQ-04 --- Log out}{seq:04}{Revoke the token family; repeated operations cannot restore a revoked session.\par\small Actor: Token holder. Traceability: FR-AUTH-004–005; UC-AUTH-004.}{images/sequence/SEQ-04-logout.png}
+
+\diagram{SEQ-05 --- View own profile}{seq:05}{Read only the authenticated user's profile without mutation.\par\small Actor: Customer. Traceability: FR-PROFILE-001; FR-USER-001, FR-USER-003; UC-PROFILE-001.}{images/sequence/SEQ-05-view-profile.png}
+
+\diagram{SEQ-06 --- Update own profile}{seq:06}{Update only allowlisted fields belonging to the authenticated user.\par\small Actor: Customer. Traceability: FR-PROFILE-003; FR-USER-001, FR-USER-003; UC-PROFILE-003.}{images/sequence/SEQ-06-update-profile.png}
+
+\diagram{SEQ-07 --- Change password}{seq:07}{Verify the current password; change its hash and revoke all refresh families atomically.\par\small Actor: Customer. Traceability: FR-PROFILE-002; FR-AUTH-005; UC-PROFILE-002.}{images/sequence/SEQ-07-change-password.png}
+
+\diagram{SEQ-08 --- View product list}{seq:08}{Return active products with validated search, filters, sorting and offset pagination.\par\small Actor: Guest / Customer. Traceability: FR-PROD-001–002; FR-API-002; UC-PROD-001.}{images/sequence/SEQ-08-view-product-list.png}
+
+\diagram{SEQ-09 --- View product details}{seq:09}{Return active product details and safely handle missing or inactive products.\par\small Actor: Guest / Customer. Traceability: FR-PROD-003; UC-PROD-001.}{images/sequence/SEQ-09-view-product-details.png}
+
+\diagram{SEQ-10 --- Create product}{seq:10}{Admin creates a product with an integer-VND price and nonnegative initial stock.\par\small Actor: Admin. Traceability: FR-PROD-004; FR-USER-002; UC-PROD-002.}{images/sequence/SEQ-10-create-product.png}
+
+\diagram{SEQ-11 --- Update product}{seq:11}{Admin updates allowlisted catalog fields; direct stock mutation is forbidden.\par\small Actor: Admin. Traceability: FR-PROD-005; FR-USER-002; UC-PROD-002.}{images/sequence/SEQ-11-update-product.png}
+
+\diagram{SEQ-12 --- Upload product image}{seq:12}{Validate role, type and size; persist the file and clean it up if the database write fails.\par\small Actor: Admin. Traceability: FR-UPLOAD-001; FR-USER-002; UC-UPLOAD-001.}{images/sequence/SEQ-12-upload-product-image.png}
+
+\diagram{SEQ-13 --- Adjust product stock}{seq:13}{Admin supplies a signed delta and reason; reject negative stock and persist audit atomically.\par\small Actor: Admin. Traceability: FR-INVENTORY-001–002; FR-USER-002; UC-ADMIN-002.}{images/sequence/SEQ-13-adjust-product-stock.png}
+
+\diagram{SEQ-14 --- View user roles}{seq:14}{Admin reads role assignments; this read operation does not create a role-change audit.\par\small Actor: Admin. Traceability: FR-USER-004.}{images/sequence/SEQ-14-view-user-roles.png}
+
+\diagram{SEQ-15 --- Create order}{seq:15}{Validate inline shipping details; calculate server totals, save snapshots and reserve stock for 60 minutes.\par\small Actor: Customer. Traceability: FR-ORDER-001, FR-ORDER-005; FR-INVENTORY-001; FR-PAY-005; UC-ORDER-001.}{images/sequence/SEQ-15-create-order.png}
+
+\diagram{SEQ-16 --- View own order list}{seq:16}{Customer receives only their own paginated orders.\par\small Actor: Customer. Traceability: FR-ORDER-002; FR-USER-003; UC-ORDER-002.}{images/sequence/SEQ-16-view-own-order-list.png}
+
+\diagram{SEQ-17 --- View own order details}{seq:17}{Customer reads an owned order's snapshots, payment information and status history.\par\small Actor: Customer. Traceability: FR-ORDER-002, FR-ORDER-005; FR-USER-003; UC-ORDER-002.}{images/sequence/SEQ-17-view-own-order-details.png}
+
+\diagram{SEQ-18 --- Cancel order}{seq:18}{Cancel before payment; serialize with IPN/expiry and release stock exactly once.\par\small Actor: Customer. Traceability: FR-ORDER-002, FR-ORDER-005; FR-INVENTORY-001; FR-PAY-005; UC-ORDER-001–002.}{images/sequence/SEQ-18-cancel-order.png}
+
+\diagram{SEQ-19 --- View fulfillment queue}{seq:19}{Staff/Admin reads the status-based fulfillment queue; advanced filters remain P1.\par\small Actor: Staff / Admin. Traceability: FR-ORDER-003; FR-USER-002; UC-STAFF-001.}{images/sequence/SEQ-19-view-order-list.png}
+
+\diagram{SEQ-20 --- View order details for fulfillment}{seq:20}{Staff/Admin reads eligible fulfillment details, shipping snapshots, payment summary and history.\par\small Actor: Staff / Admin. Traceability: FR-ORDER-003, FR-ORDER-005; FR-USER-002; UC-STAFF-001.}{images/sequence/SEQ-20-view-order-details.png}
+
+\diagram{SEQ-21 --- Update order status}{seq:21}{Advance the next permitted fulfillment state and persist history without editing payment state.\par\small Actor: Staff / Admin. Traceability: FR-ORDER-004–005; FR-USER-002; UC-STAFF-001.}{images/sequence/SEQ-21-update-order-status.png}
+
+\diagram{SEQ-22 --- Initiate VNPay payment}{seq:22}{Allow one pending attempt; reuse a safely valid URL or return conflict without changing stock.\par\small Actor: Customer. Traceability: FR-PAY-001–002, FR-PAY-004; UC-PAY-001.}{images/sequence/SEQ-22-initiate-payment.png}
+
+\diagram{SEQ-23 --- Handle VNPay IPN}{seq:23}{Verify signature and persisted data; handle success, failure, duplicate, late and conflicting callbacks.\par\small Actor: VNPay Sandbox. Traceability: FR-PAY-003–005; FR-ORDER-005; UC-PAY-002–003.}{images/sequence/SEQ-23-handle-vnpay-ipn.png}
+
+\diagram{SEQ-24 --- Handle browser return}{seq:24}{Browser return cannot settle payment; presentation must reflect authoritative server state.\par\small Actor: Customer browser. Traceability: FR-PAY-003.}{images/sequence/SEQ-24-handle-payment-return.png}
+
+\diagram{SEQ-25 --- Expire payment attempt}{seq:25}{Evaluate the 20-minute target; expire only safely and retain PENDING if provider finality is unresolved.\par\small Actor: In-process scheduler. Traceability: FR-PAY-005; UC-PAY-001 expiry support.}{images/sequence/SEQ-25-expire-payment-attempt.png}
+
+\diagram{SEQ-26 --- Expire order and release stock}{seq:26}{Expire overdue 60-minute reservations, pending attempts and history; release stock exactly once.\par\small Actor: In-process scheduler. Traceability: FR-PAY-005; FR-ORDER-005; FR-INVENTORY-001; UC-ORDER-003.}{images/sequence/SEQ-26-expire-order-release-stock.png}
+
+\diagram{SEQ-27 --- View payment reconciliation}{seq:27}{Admin reads attempts and reconciliation outcomes without settlement-edit authority.\par\small Actor: Admin. Traceability: FR-PAY-004.}{images/sequence/SEQ-27-view-payment-reconciliation.png}
+
+\diagram{SEQ-28 --- Check API health}{seq:28}{A lightweight public endpoint reports health without exposing secrets.\par\small Actor: Health-check caller. Traceability: FR-HEALTH-001; FR-API-001.}{images/sequence/SEQ-28-health-check.png}
+
+\diagram{SEQ-29 --- Manage categories (P1)}{seq:29}{Optional P1 active-category browsing and Admin category management.\par\small Actor: Guest / Admin. Traceability: FR-CAT-001.}{images/sequence/SEQ-29-manage-categories.png}
+
+\diagram{SEQ-30 --- Manage cart (P1)}{seq:30}{Optional P1 customer-owned cart management without price or stock reservation.\par\small Actor: Customer. Traceability: FR-CART-001; FR-USER-003.}{images/sequence/SEQ-30-manage-cart.png}
+
+\diagram{SEQ-31 --- Send email notification (P1)}{seq:31}{Deferred P1: persist the event with business state, send after commit and recover/retry with bounds.\par\small Actor: Business event / startup recovery. Traceability: FR-EMAIL-001–003; UC-EMAIL-001.}{images/sequence/SEQ-31-send-email-notification.png}
+
+\diagram{SEQ-32 --- Update user role}{seq:32}{Admin changes a role through a dedicated operation with atomic actor/target/old/new/time audit.\par\small Actor: Admin. Traceability: FR-USER-004; UC-ADMIN-001.}{images/sequence/SEQ-32-update-user-role.png}

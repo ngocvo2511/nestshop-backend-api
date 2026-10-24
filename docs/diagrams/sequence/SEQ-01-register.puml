@@ -1,0 +1,58 @@
+@startuml
+title SEQ-01 — Register account
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Guest" as Caller
+control "AuthController" as Entry
+control "AuthService" as Service
+control "UsersService" as Users
+database "PostgreSQL\nusers" as DB
+
+activate Caller
+Caller -> Entry: Submit registration details
+activate Entry
+Entry -> Service: register(dto)
+activate Service
+Service -> Service: Validate registration details; reject role input
+alt The registration input is invalid
+  Service --> Entry: The registration information is invalid.
+  Entry --> Caller: The registration information is invalid.
+else The registration input is valid
+  Service -> Users: findByEmail(normalizedEmail)
+  activate Users
+  Users -> DB: Check whether the email exists
+  activate DB
+  DB --> Users: Return matching account
+  deactivate DB
+  Users --> Service: Return email lookup result
+  deactivate Users
+  alt An account already uses this email address
+    Service --> Entry: This email address is already registered.
+    Entry --> Caller: This email address is already registered.
+  else No existing account uses this email address
+    Service -> Service: Hash password
+    Service -> Users: createCustomer(normalizedEmail, passwordHash)
+    activate Users
+    Users -> DB: Create active CUSTOMER account with unique email and hashed password
+    activate DB
+    DB --> Users: Return account creation outcome
+    deactivate DB
+    alt The account is created successfully
+      Users --> Service: Return created account without password data
+      Service --> Entry: Your customer account has been created.
+      Entry --> Caller: Your customer account has been created.
+    else Another registration saved the same email first
+      Users --> Service: Reject duplicate email
+      Service --> Entry: This email address is already registered.
+      Entry --> Caller: This email address is already registered.
+    end
+    deactivate Users
+  end
+end
+deactivate Service
+deactivate Entry
+deactivate Caller
+@enduml

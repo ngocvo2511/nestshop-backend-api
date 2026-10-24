@@ -1,0 +1,33 @@
+@startuml
+title SEQ-08 — View product list
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Guest / Customer" as Caller
+control "ProductsController" as Entry
+control "ProductsService" as Service
+database "PostgreSQL\nproducts" as DB
+
+activate Caller
+Caller -> Entry: Search, filter, sort and paginate products
+activate Entry
+Entry -> Service: findAll(query)
+activate Service
+Service -> Service: Validate product query and pagination
+alt A query field or pagination value is invalid
+  Service --> Entry: The product query contains invalid values.
+  Entry --> Caller: The product query contains invalid values.
+else The query is valid
+  Service -> DB: Find active products with stable sorting, offset, limit and total count
+  activate DB
+  DB --> Service: Return matching products and total
+  deactivate DB
+  Service --> Entry: Return products, offset, limit and total
+  Entry --> Caller: Return products, offset, limit and total
+end
+deactivate Service
+deactivate Entry
+deactivate Caller
+@enduml

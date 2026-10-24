@@ -1,0 +1,50 @@
+@startuml
+title SEQ-27 — View payment reconciliation
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Admin" as Caller
+control "PaymentsController" as Entry
+control "JwtAuthGuard" as AuthGuard
+control "RolesGuard" as RoleGuard
+control "PaymentsService" as Service
+database "PostgreSQL\norders, payments" as DB
+
+activate Caller
+Caller -> Entry: Inspect payment and reconciliation records
+activate Entry
+Entry -> AuthGuard: Verify access token
+activate AuthGuard
+AuthGuard --> Entry: Return authentication outcome
+deactivate AuthGuard
+alt The access token is missing, invalid or expired
+  Entry --> Caller: Invalid or missing access token
+else The access token identifies an authenticated user
+  Entry -> RoleGuard: Check ADMIN permission
+  activate RoleGuard
+  RoleGuard --> Entry: Return permission check outcome
+  deactivate RoleGuard
+  alt The user does not have the required permission
+    Entry --> Caller: Permission denied
+  else The role permits this operation
+    Entry -> Service: inspectReconciliation(query)
+    activate Service
+    Service -> DB: Read payment attempts and safe reconciliation details
+    activate DB
+    DB --> Service: Return matching inspection records
+    deactivate DB
+    alt Matching records are available
+      Service --> Entry: Return payment and reconciliation details
+      Entry --> Caller: Return payment and reconciliation details
+    else No matching record is available
+      Service --> Entry: The requested payment information was not found.
+      Entry --> Caller: The requested payment information was not found.
+    end
+    deactivate Service
+  end
+end
+deactivate Entry
+deactivate Caller
+@enduml

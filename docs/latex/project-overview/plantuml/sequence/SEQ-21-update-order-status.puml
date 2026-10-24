@@ -1,0 +1,55 @@
+@startuml
+title SEQ-21 — Update order status
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Staff / Admin" as Caller
+control "StaffOrdersController" as Entry
+control "JwtAuthGuard" as AuthGuard
+control "RolesGuard" as RoleGuard
+control "OrdersService" as Service
+database "PostgreSQL\norders, order_status_history" as DB
+
+activate Caller
+Caller -> Entry: Update fulfillment status
+activate Entry
+Entry -> AuthGuard: Verify access token
+activate AuthGuard
+AuthGuard --> Entry: Return authentication outcome
+deactivate AuthGuard
+alt The access token is missing, invalid or expired
+  Entry --> Caller: Invalid or missing access token
+else The access token identifies an authenticated user
+  Entry -> RoleGuard: Check STAFF fulfillment or ADMIN permission
+  activate RoleGuard
+  RoleGuard --> Entry: Return permission check outcome
+  deactivate RoleGuard
+  alt The user does not have the required permission
+    Entry --> Caller: Permission denied
+  else The role permits this operation
+    Entry -> Service: advanceStatus(actorId, orderId, nextStatus)
+    activate Service
+    Service -> Service: Validate fulfillment status; reject payment changes
+    Service -> DB: Lock authorized order and read status
+    activate DB
+    DB --> Service: Return order and current status
+    deactivate DB
+    alt The order is unavailable or the requested transition is backward, skipped or terminal
+      Service --> Entry: This fulfillment transition is not permitted.
+      Entry --> Caller: This fulfillment transition is not permitted.
+    else The request advances PAID to PROCESSING, PROCESSING to SHIPPED, or SHIPPED to COMPLETED
+      Service -> DB: Update fulfillment status and history together; preserve payment state
+      activate DB
+      DB --> Service: Fulfillment status and history recorded
+      deactivate DB
+      Service --> Entry: Fulfillment status and history updated
+      Entry --> Caller: Fulfillment status and history updated
+    end
+    deactivate Service
+  end
+end
+deactivate Entry
+deactivate Caller
+@enduml

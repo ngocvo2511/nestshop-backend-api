@@ -1,0 +1,68 @@
+@startuml
+title SEQ-22 — Initiate VNPay payment
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Customer" as Caller
+control "PaymentsController" as Entry
+control "JwtAuthGuard" as AuthGuard
+control "RolesGuard" as RoleGuard
+control "PaymentsService" as Service
+database "PostgreSQL\norders, payments" as DB
+
+activate Caller
+Caller -> Entry: Request payment URL
+activate Entry
+Entry -> AuthGuard: Verify access token
+activate AuthGuard
+AuthGuard --> Entry: Return authentication outcome
+deactivate AuthGuard
+alt The access token is missing, invalid or expired
+  Entry --> Caller: Invalid or missing access token
+else The access token identifies an authenticated user
+  Entry -> RoleGuard: Check CUSTOMER permission
+  activate RoleGuard
+  RoleGuard --> Entry: Return permission check outcome
+  deactivate RoleGuard
+  alt The user does not have the required permission
+    Entry --> Caller: Permission denied
+  else The role permits this operation
+    Entry -> Service: initiatePayment(customerId, orderId)
+    activate Service
+    Service -> DB: Lock owned order and attempts; check payment eligibility\nand 60-minute reservation deadline
+    activate DB
+    DB --> Service: Return eligibility and existing attempt
+    deactivate DB
+    alt The order is foreign, missing, paid, cancelled, expired or otherwise ineligible
+      Service --> Entry: Payment cannot be started for this order.
+      Entry --> Caller: Payment cannot be started for this order.
+    else A pending attempt already exists
+      alt Its existing payment URL is safely reusable under verified provider rules
+        Service --> Entry: Return existing valid payment URL
+        Entry --> Caller: Return existing valid payment URL
+      else The existing payment URL is unsafe or its validity is unresolved
+        Service --> Entry: Conflict: attempt pending; URL validity not established
+        Entry --> Caller: Conflict: attempt pending; URL validity not established
+      end
+    else No pending attempt exists and every previous attempt genuinely failed or expired
+      Service -> Service: Generate signed VNPay URL from stored VND total and configured settings
+      alt Signing or required payment configuration fails
+        Service --> Entry: Payment URL generation failed; no attempt created
+        Entry --> Caller: Payment URL generation failed; no attempt created
+      else The signed payment URL is generated
+        Service -> DB: Create one PENDING attempt with configured 20-minute target deadline\nEnforce one pending and one successful attempt per order
+        activate DB
+        DB --> Service: Attempt recorded; stock unchanged
+        deactivate DB
+        Service --> Entry: Return new payment URL; reservation unchanged
+        Entry --> Caller: Return new payment URL; reservation unchanged
+      end
+    end
+    deactivate Service
+  end
+end
+deactivate Entry
+deactivate Caller
+@enduml

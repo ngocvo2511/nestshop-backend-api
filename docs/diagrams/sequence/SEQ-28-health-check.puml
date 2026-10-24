@@ -1,0 +1,23 @@
+@startuml
+title SEQ-28 — Check API health
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Health-check caller" as Caller
+control "HealthController" as Entry
+control "HealthService" as Service
+
+activate Caller
+Caller -> Entry: Check API health
+activate Entry
+Entry -> Service: getHealth()
+activate Service
+Service -> Service: Check lightweight API health
+Service --> Entry: Return health status
+deactivate Service
+Entry --> Caller: Return health status
+deactivate Entry
+deactivate Caller
+@enduml

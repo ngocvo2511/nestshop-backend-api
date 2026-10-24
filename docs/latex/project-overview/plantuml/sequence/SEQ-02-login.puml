@@ -1,0 +1,38 @@
+@startuml
+title SEQ-02 — Login
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Guest" as Caller
+control "AuthController" as Entry
+control "AuthService" as Service
+database "PostgreSQL\nusers, refresh_tokens" as DB
+
+activate Caller
+Caller -> Entry: Submit login credentials
+activate Entry
+Entry -> Service: login(credentials)
+activate Service
+Service -> DB: Find account and password hash
+activate DB
+DB --> Service: Return account details
+deactivate DB
+Service -> Service: Verify password and account status
+alt The credentials are incorrect or the account is inactive
+  Service --> Entry: The email address or password is incorrect.
+  Entry --> Caller: The email address or password is incorrect.
+else The credentials belong to an active account
+  Service -> Service: Generate access token and refresh token
+  Service -> DB: Store refresh token hash, family and expiry
+  activate DB
+  DB --> Service: Return session creation outcome
+  deactivate DB
+  Service --> Entry: Return access token and refresh token
+  Entry --> Caller: Return access token and refresh token
+end
+deactivate Service
+deactivate Entry
+deactivate Caller
+@enduml

@@ -1,0 +1,48 @@
+@startuml
+title SEQ-03 — Refresh token
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Token holder" as Caller
+control "AuthController" as Entry
+control "AuthService" as Service
+database "PostgreSQL\nrefresh_tokens" as DB
+
+activate Caller
+Caller -> Entry: Submit refresh token
+activate Entry
+Entry -> Service: rotateRefreshToken(token)
+activate Service
+Service -> Service: Validate and hash refresh token
+Service -> DB: Lock refresh token and family
+activate DB
+DB --> Service: Return token lifecycle details
+deactivate DB
+alt The token is unknown, invalid or expired
+  Service --> Entry: Invalid or expired refresh token
+  Entry --> Caller: Invalid or expired refresh token
+else Logout or password change already revoked the token
+  Service --> Entry: Session revoked; login required
+  Entry --> Caller: Session revoked; login required
+else The token was already consumed by a successful rotation
+  Service -> DB: Revoke token family for replay
+  activate DB
+  DB --> Service: Family revocation recorded
+  deactivate DB
+  Service --> Entry: Replay detected; family revoked; login required
+  Entry --> Caller: Replay detected; family revoked; login required
+else The token is active, unexpired and has not been consumed
+  Service -> Service: Generate access token and replacement refresh token
+  Service -> DB: Consume old token and store replacement atomically
+  activate DB
+  DB --> Service: Token rotation recorded
+  deactivate DB
+  Service --> Entry: Return access token and replacement refresh token
+  Entry --> Caller: Return access token and replacement refresh token
+end
+deactivate Service
+deactivate Entry
+deactivate Caller
+@enduml

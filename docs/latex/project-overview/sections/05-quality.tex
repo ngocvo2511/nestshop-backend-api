@@ -1,0 +1,47 @@
+\chapter{Quality, Acceptance and Risks}
+\section{Non-Functional Requirements}
+\begin{tabularx}{\textwidth}{@{}p{30mm}X@{}}
+\toprule
+Attribute & Target and verification \\
+\midrule
+Security & Verified JWTs, server-side roles/ownership, safe hashes, DTO allowlisting, ORM parameterization and validated uploads; secret-free responses/logs. \\
+Integrity & Transactions with locks/conditional updates for checkout, stock, refresh and payment; no overselling, double release or duplicate settlement. \\
+API & Consistent success/error envelopes and safe status/code/message details; Swagger documents routes, security, DTOs, queries, multipart and errors. \\
+Performance & Target server-side p95 below 500 ms for the specified local product-list scenario with 1,000 active products and at least 30 sequential requests. This must be measured. \\
+Testing & At least 70\% Jest statement, branch, function and line coverage within the configured source scope; critical business tests remain mandatory. \\
+Reproducibility & README/environment documentation, Docker Compose, migrations/init and Swagger support clean-checkout verification; Conventional Commits apply. \\
+\bottomrule
+\end{tabularx}
+
+The performance scenario is \code{GET /products?offset=0&limit=20&sort=name}, excluding network/client time. Final routes must be consistent with the selected API base path and contract.
+
+\section{Critical Verification Matrix}
+\begin{longtable}{@{}p{35mm}p{118mm}@{}}
+\toprule
+Area & Required acceptance evidence \\
+\midrule\endhead
+Authentication & Invalid credentials, roles/ownership, single-winner concurrent rotation, replay-family revocation, ordinary logout/password revocation, expiry and role audit. \\
+Stock / checkout & Server-authoritative prices; required shipping details and snapshots; insufficient stock, rollback, final-item contention, adjustment/checkout races and audit. \\
+Payments & One pending attempt; reuse/conflict; invalid signature/amount/reference; success, failure, duplicate/late IPN, one-success constraint and non-settling return. \\
+Expiration & Startup recovery, repeated scans, attempt expiry retaining stock, order expiry releasing once and IPN/cancellation/expiry races. \\
+Uploads / API & Invalid/oversize files, cleanup on DB failure, DTO/mass-assignment rejection, consistent errors, Swagger and public health. \\
+Real PostgreSQL & P0 integration tests exercise locks, partial unique indexes, concurrent refresh/checkout/initiation/settlement, rollback and stock adjustments. \\
+Future P1 & If email is selected: atomic event creation, post-commit send, event deduplication, retry/lease, disabled/failed SMTP and restart recovery. \\
+\bottomrule
+\end{longtable}
+
+The required coverage command is \code{npm run test:cov}. Exclusions for generated/bootstrap-only files require documented configuration. This overview does not claim application Jest results, coverage attainment or measured performance: no application implementation is available for those checks.
+
+\section{Remaining Integration Obligations}
+MVP product policies are approved. Detailed design and verification still cover:
+\begin{itemize}
+\item VNPay merchant/API configuration, signature/encoding fixtures, amount conversion, result mapping and IPN acknowledgement behavior.
+\item Existing URL validity/reuse and safe attempt finality; a local deadline alone cannot establish the provider's final state.
+\item Endpoint contracts, DTO limits, pagination, response/error shapes, scheduler interval and exact eligible-order query contracts for Staff.
+\item Separate design when optional categories, carts or email are selected; speculative tables and dependencies must not become P0 requirements.
+\end{itemize}
+
+Sandbox integration testing remains necessary before payment acceptance. P0 tests must not use production credentials or real payment transactions.
+
+\section{MVP Delivery Criteria}
+Complete P0 traceability and acceptance first. Delivery includes source code, schema/migrations, secret-free sample configuration, Swagger, clean Docker Compose instructions, coverage reports and concurrency/transaction results. If a P0 item exceeds the estimate, document a smaller compliant implementation and its remaining risks rather than silently removing the requirement.

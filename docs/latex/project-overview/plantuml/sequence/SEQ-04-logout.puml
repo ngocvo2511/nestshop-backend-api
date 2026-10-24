@@ -1,0 +1,37 @@
+@startuml
+title SEQ-04 — Logout
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Token holder" as Caller
+control "AuthController" as Entry
+control "AuthService" as Service
+database "PostgreSQL\nrefresh_tokens" as DB
+
+activate Caller
+Caller -> Entry: Submit logout request
+activate Entry
+Entry -> Service: logout(token)
+activate Service
+Service -> Service: Validate token and identify family
+Service -> DB: Lock family and check revocation state
+activate DB
+DB --> Service: Return family state
+deactivate DB
+alt The family is still eligible for logout revocation
+  Service -> DB: Revoke family for logout
+  activate DB
+  DB --> Service: Logout revocation recorded
+  deactivate DB
+  Service --> Entry: Logout successful; access tokens remain valid until expiry
+  Entry --> Caller: Logout successful; access tokens remain valid until expiry
+else A repeated or concurrent request finds an already revoked or expired family
+  Service --> Entry: Session already unavailable; no change
+  Entry --> Caller: Session already unavailable; no change
+end
+deactivate Service
+deactivate Entry
+deactivate Caller
+@enduml

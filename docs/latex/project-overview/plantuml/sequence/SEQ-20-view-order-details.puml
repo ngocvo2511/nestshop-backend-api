@@ -1,0 +1,54 @@
+@startuml
+title SEQ-20 — View order details (Staff/Admin)
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Staff / Admin" as Caller
+control "StaffOrdersController" as Entry
+control "JwtAuthGuard" as AuthGuard
+control "RolesGuard" as RoleGuard
+control "OrdersService" as Service
+database "PostgreSQL\norders, order_items, payments\norder_status_history" as DB
+
+activate Caller
+Caller -> Entry: View fulfillment order details
+activate Entry
+Entry -> AuthGuard: Verify access token
+activate AuthGuard
+AuthGuard --> Entry: Return authentication outcome
+deactivate AuthGuard
+alt The access token is missing, invalid or expired
+  Entry --> Caller: Invalid or missing access token
+else The access token identifies an authenticated user
+  Entry -> RoleGuard: Check STAFF or ADMIN permission
+  activate RoleGuard
+  RoleGuard --> Entry: Return permission check outcome
+  deactivate RoleGuard
+  alt The user does not have the required permission
+    Entry --> Caller: Permission denied
+  else The role permits this operation
+    Entry -> Service: getFulfillmentOrder(actorId, orderId)
+    activate Service
+    Service -> DB: Find order within permitted staff scope
+    activate DB
+    DB --> Service: Return eligible order
+    deactivate DB
+    alt The order is missing or outside the permitted scope
+      Service --> Entry: The requested fulfillment order is unavailable.
+      Entry --> Caller: The requested fulfillment order is unavailable.
+    else The order can be inspected for fulfillment
+      Service -> DB: Read items, shipping address, payment summary and history
+      activate DB
+      DB --> Service: Return fulfillment details
+      deactivate DB
+      Service --> Entry: Return fulfillment order details
+      Entry --> Caller: Return fulfillment order details
+    end
+    deactivate Service
+  end
+end
+deactivate Entry
+deactivate Caller
+@enduml

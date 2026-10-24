@@ -1,0 +1,68 @@
+@startuml
+title SEQ-29 — Manage categories (P1)
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Guest / Admin" as Caller
+control "CategoriesController" as Entry
+control "JwtAuthGuard" as AuthGuard
+control "RolesGuard" as RoleGuard
+control "CategoriesService" as Service
+database "PostgreSQL\ncategories" as DB
+
+activate Caller
+Caller -> Entry: Browse or manage categories
+activate Entry
+alt Browse active categories
+  Entry -> Service: findActiveCategories(query)
+  activate Service
+  Service -> DB: Find active categories
+  activate DB
+  DB --> Service: Return active categories
+  deactivate DB
+  Service --> Entry: Return active categories
+  deactivate Service
+  Entry --> Caller: Return active categories
+else Manage categories
+  Entry -> AuthGuard: Verify access token
+  activate AuthGuard
+  AuthGuard --> Entry: Return authentication outcome
+  deactivate AuthGuard
+  alt The access token is invalid
+    Entry --> Caller: Invalid or missing access token
+  else The access token is valid
+    Entry -> RoleGuard: Check ADMIN permission
+    activate RoleGuard
+    RoleGuard --> Entry: Return permission check outcome
+    deactivate RoleGuard
+    alt The user is not an administrator
+      Entry --> Caller: ADMIN permission required
+    else The user is an administrator
+      Entry -> Service: manageCategory(actorId, operation, dto)
+      activate Service
+      Service -> Service: Validate category request
+      alt The category input is invalid
+        Service --> Entry: The category information is invalid.
+        Entry --> Caller: The category information is invalid.
+      else The category request is valid
+        Service -> DB: Perform category operation
+        activate DB
+        DB --> Service: Return category operation outcome
+        deactivate DB
+        alt The operation succeeds
+          Service --> Entry: Return category result
+          Entry --> Caller: Return category result
+        else The target category is missing
+          Service --> Entry: The requested category was not found.
+          Entry --> Caller: The requested category was not found.
+        end
+      end
+      deactivate Service
+    end
+  end
+end
+deactivate Entry
+deactivate Caller
+@enduml

@@ -1,0 +1,76 @@
+@startuml
+title SEQ-12 — Upload product image
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Admin" as Caller
+control "ProductsController" as Entry
+control "JwtAuthGuard" as AuthGuard
+control "RolesGuard" as RoleGuard
+control "ProductImagesService" as Service
+collections "Local product image storage" as Files
+database "PostgreSQL\nproducts" as DB
+
+activate Caller
+Caller -> Entry: Upload product image
+activate Entry
+Entry -> AuthGuard: Verify access token
+activate AuthGuard
+AuthGuard --> Entry: Return authentication outcome
+deactivate AuthGuard
+alt The access token is missing, invalid or expired
+  Entry --> Caller: Invalid or missing access token
+else The access token identifies an authenticated user
+  Entry -> RoleGuard: Check ADMIN permission
+  activate RoleGuard
+  RoleGuard --> Entry: Return permission check outcome
+  deactivate RoleGuard
+  alt The user does not have the required permission
+    Entry --> Caller: Permission denied
+  else The role permits this operation
+    Entry -> Service: uploadImage(productId, file)
+    activate Service
+    Service -> Service: Validate JPEG, PNG or WebP up to 5 MiB with Multer\nGenerate safe server filename
+    alt The upload fails validation
+      Service --> Entry: Invalid image type, size or filename
+      Entry --> Caller: Invalid image type, size or filename
+    else The upload is valid
+      Service -> Files: Store image locally
+      activate Files
+      Files --> Service: Return file storage outcome
+      deactivate Files
+      alt The file cannot be stored
+        Service --> Entry: Image storage failed; no reference created
+        Entry --> Caller: Image storage failed; no reference created
+      else The file is stored
+        Service -> DB: Save product image path
+        activate DB
+        DB --> Service: Return image reference outcome
+        deactivate DB
+        alt The image reference is saved
+          Service --> Entry: Return uploaded image URL or reference
+          Entry --> Caller: Return uploaded image URL or reference
+        else The product is missing or its image reference cannot be saved
+          Service -> Files: Delete orphaned upload
+          activate Files
+          Files --> Service: Return cleanup outcome
+          deactivate Files
+          alt The orphaned file is deleted
+            Service --> Entry: Image reference failed; upload removed
+            Entry --> Caller: Image reference failed; upload removed
+          else The orphaned file cannot be deleted
+            Service -> Service: Log cleanup failure for manual review
+            Service --> Entry: The image reference could not be saved.
+            Entry --> Caller: The image reference could not be saved.
+          end
+        end
+      end
+    end
+    deactivate Service
+  end
+end
+deactivate Entry
+deactivate Caller
+@enduml

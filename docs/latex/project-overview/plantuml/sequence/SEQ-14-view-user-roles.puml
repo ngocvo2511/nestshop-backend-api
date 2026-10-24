@@ -1,0 +1,45 @@
+@startuml
+title SEQ-14 — View user roles
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Admin" as Caller
+control "UsersController" as Entry
+control "JwtAuthGuard" as AuthGuard
+control "RolesGuard" as RoleGuard
+control "RolesService" as Service
+database "PostgreSQL\nusers" as DB
+
+activate Caller
+Caller -> Entry: View user role assignments
+activate Entry
+Entry -> AuthGuard: Verify access token
+activate AuthGuard
+AuthGuard --> Entry: Return authentication outcome
+deactivate AuthGuard
+alt The access token is missing, invalid or expired
+  Entry --> Caller: Invalid or missing access token
+else The access token identifies an authenticated user
+  Entry -> RoleGuard: Check ADMIN permission
+  activate RoleGuard
+  RoleGuard --> Entry: Return permission check outcome
+  deactivate RoleGuard
+  alt The user does not have the required permission
+    Entry --> Caller: Permission denied
+  else The role permits this operation
+    Entry -> Service: getRoleAssignments(query)
+    activate Service
+    Service -> DB: Find user role assignments
+    activate DB
+    DB --> Service: Return role assignments
+    deactivate DB
+    Service --> Entry: Return user role assignments
+    Entry --> Caller: Return user role assignments
+    deactivate Service
+  end
+end
+deactivate Entry
+deactivate Caller
+@enduml

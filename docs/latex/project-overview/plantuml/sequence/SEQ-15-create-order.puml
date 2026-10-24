@@ -1,0 +1,61 @@
+@startuml
+title SEQ-15 — Create order
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Customer" as Caller
+control "OrdersController" as Entry
+control "JwtAuthGuard" as AuthGuard
+control "RolesGuard" as RoleGuard
+control "OrdersService" as Service
+database "PostgreSQL\nproducts, orders, order_items\norder_status_history" as DB
+
+activate Caller
+Caller -> Entry: Submit items, recipient name, phone and shipping address
+activate Entry
+Entry -> AuthGuard: Verify access token
+activate AuthGuard
+AuthGuard --> Entry: Return authentication outcome
+deactivate AuthGuard
+alt The access token is missing, invalid or expired
+  Entry --> Caller: Invalid or missing access token
+else The access token identifies an authenticated user
+  Entry -> RoleGuard: Check CUSTOMER permission
+  activate RoleGuard
+  RoleGuard --> Entry: Return permission check outcome
+  deactivate RoleGuard
+  alt The user does not have the required permission
+    Entry --> Caller: Permission denied
+  else The role permits this operation
+    Entry -> Service: createOrder(customerId, dto)
+    activate Service
+    Service -> Service: Validate items, quantities and inline shipping details\nIgnore client prices
+    alt The order items or shipping details are invalid
+      Service --> Entry: Invalid order items or shipping details
+      Entry --> Caller: Invalid order items or shipping details
+    else The order request is valid
+      Service -> DB: Lock products and read current prices, availability and stock
+      activate DB
+      DB --> Service: Return current products and stock
+      deactivate DB
+      alt A product is unavailable or stock is insufficient
+        Service --> Entry: Unavailable items or insufficient stock; no reservation
+        Entry --> Caller: Unavailable items or insufficient stock; no reservation
+      else All requested products are active and in stock
+        Service -> Service: Calculate line totals and order total from server prices in integer VND
+        Service -> DB: Create PENDING_PAYMENT order with snapshots and history\nSave shipping details and reserve stock for 60 minutes
+        activate DB
+        DB --> Service: Order, shipping details and history saved; stock reserved
+        deactivate DB
+        Service --> Entry: Order created; stock reserved for 60 minutes
+        Entry --> Caller: Order created; stock reserved for 60 minutes
+      end
+    end
+    deactivate Service
+  end
+end
+deactivate Entry
+deactivate Caller
+@enduml

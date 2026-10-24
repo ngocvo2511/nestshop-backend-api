@@ -1,0 +1,51 @@
+@startuml
+title SEQ-10 — Create product
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Admin" as Caller
+control "ProductsController" as Entry
+control "JwtAuthGuard" as AuthGuard
+control "RolesGuard" as RoleGuard
+control "ProductsService" as Service
+database "PostgreSQL\nproducts" as DB
+
+activate Caller
+Caller -> Entry: Submit new product details
+activate Entry
+Entry -> AuthGuard: Verify access token
+activate AuthGuard
+AuthGuard --> Entry: Return authentication outcome
+deactivate AuthGuard
+alt The access token is missing, invalid or expired
+  Entry --> Caller: Invalid or missing access token
+else The access token identifies an authenticated user
+  Entry -> RoleGuard: Check ADMIN permission
+  activate RoleGuard
+  RoleGuard --> Entry: Return permission check outcome
+  deactivate RoleGuard
+  alt The user does not have the required permission
+    Entry --> Caller: Permission denied
+  else The role permits this operation
+    Entry -> Service: create(dto)
+    activate Service
+    Service -> Service: Validate integer VND price, initial stock and allowed fields
+    alt The product information is invalid
+      Service --> Entry: Invalid product details
+      Entry --> Caller: Invalid product details
+    else The product information is valid
+      Service -> DB: Create product with initial stock
+      activate DB
+      DB --> Service: Return product creation outcome
+      deactivate DB
+      Service --> Entry: The product has been created.
+      Entry --> Caller: The product has been created.
+    end
+    deactivate Service
+  end
+end
+deactivate Entry
+deactivate Caller
+@enduml

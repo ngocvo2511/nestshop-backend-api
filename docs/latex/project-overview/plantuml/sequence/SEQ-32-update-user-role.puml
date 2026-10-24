@@ -1,0 +1,55 @@
+@startuml
+title SEQ-32 — Update user role
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Admin" as Caller
+control "UsersController" as Entry
+control "JwtAuthGuard" as AuthGuard
+control "RolesGuard" as RoleGuard
+control "RolesService" as Service
+database "PostgreSQL\nusers, role_change_audit" as DB
+
+activate Caller
+Caller -> Entry: Change a user role
+activate Entry
+Entry -> AuthGuard: Verify access token
+activate AuthGuard
+AuthGuard --> Entry: Return authentication outcome
+deactivate AuthGuard
+alt The access token is missing, invalid or expired
+  Entry --> Caller: Invalid or missing access token
+else The access token identifies an authenticated user
+  Entry -> RoleGuard: Check ADMIN permission
+  activate RoleGuard
+  RoleGuard --> Entry: Return permission check outcome
+  deactivate RoleGuard
+  alt The user does not have the required permission
+    Entry --> Caller: Permission denied
+  else The role permits this operation
+    Entry -> Service: assignRole(actorId, userId, role)
+    activate Service
+    Service -> Service: Validate target user and role
+    Service -> DB: Lock user and read current role
+    activate DB
+    DB --> Service: Return user and current role
+    deactivate DB
+    alt The user does not exist or the role is invalid
+      Service --> Entry: The requested role assignment is invalid.
+      Entry --> Caller: The requested role assignment is invalid.
+    else The role assignment is allowed
+      Service -> DB: Update role and record role-change audit
+      activate DB
+      DB --> Service: Role change and audit recorded together
+      deactivate DB
+      Service --> Entry: Role change and audit saved
+      Entry --> Caller: Role change and audit saved
+    end
+    deactivate Service
+  end
+end
+deactivate Entry
+deactivate Caller
+@enduml

@@ -1,0 +1,51 @@
+@startuml
+title SEQ-16 — View own order list
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Customer" as Caller
+control "OrdersController" as Entry
+control "JwtAuthGuard" as AuthGuard
+control "RolesGuard" as RoleGuard
+control "OrdersService" as Service
+database "PostgreSQL\norders, payments" as DB
+
+activate Caller
+Caller -> Entry: View order history
+activate Entry
+Entry -> AuthGuard: Verify access token
+activate AuthGuard
+AuthGuard --> Entry: Return authentication outcome
+deactivate AuthGuard
+alt The access token is missing, invalid or expired
+  Entry --> Caller: Invalid or missing access token
+else The access token identifies an authenticated user
+  Entry -> RoleGuard: Check CUSTOMER permission
+  activate RoleGuard
+  RoleGuard --> Entry: Return permission check outcome
+  deactivate RoleGuard
+  alt The user does not have the required permission
+    Entry --> Caller: Permission denied
+  else The role permits this operation
+    Entry -> Service: findOwnOrders(customerId, query)
+    activate Service
+    Service -> Service: Validate pagination and filters
+    alt The history query is invalid
+      Service --> Entry: The order-history query is invalid.
+      Entry --> Caller: The order-history query is invalid.
+    else The history query is valid
+      Service -> DB: Find own orders with payment state
+      activate DB
+      DB --> Service: Return matching owned orders
+      deactivate DB
+      Service --> Entry: Return order history and payment states
+      Entry --> Caller: Return order history and payment states
+    end
+    deactivate Service
+  end
+end
+deactivate Entry
+deactivate Caller
+@enduml

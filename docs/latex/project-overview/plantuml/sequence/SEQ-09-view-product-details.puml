@@ -1,0 +1,32 @@
+@startuml
+title SEQ-09 — View product details
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Guest / Customer" as Caller
+control "ProductsController" as Entry
+control "ProductsService" as Service
+database "PostgreSQL\nproducts" as DB
+
+activate Caller
+Caller -> Entry: View product details
+activate Entry
+Entry -> Service: findActiveById(productId)
+activate Service
+Service -> DB: Find active product
+activate DB
+DB --> Service: Return matching active product
+deactivate DB
+alt The product is active and available
+  Service --> Entry: Return product details
+  Entry --> Caller: Return product details
+else The product is missing, inactive or has an invalid identifier
+  Service --> Entry: The requested product is unavailable.
+  Entry --> Caller: The requested product is unavailable.
+end
+deactivate Service
+deactivate Entry
+deactivate Caller
+@enduml

@@ -1,0 +1,28 @@
+@startuml
+title SEQ-24 — Handle payment return
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Customer browser" as Caller
+control "PaymentsController" as Entry
+control "PaymentsService" as Service
+
+activate Caller
+Caller -> Entry: Follow payment return URL
+activate Entry
+Entry -> Service: handleBrowserReturn(parameters)
+activate Service
+Service -> Service: Validate browser return data
+alt The browser return data is invalid
+  Service --> Entry: Invalid return data; payment unchanged
+  Entry --> Caller: Invalid return data; payment unchanged
+else The browser return data is valid
+  Service --> Entry: Return browser outcome; only verified IPN confirms payment
+  Entry --> Caller: Return browser outcome; only verified IPN confirms payment
+end
+deactivate Service
+deactivate Entry
+deactivate Caller
+@enduml

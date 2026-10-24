@@ -1,0 +1,33 @@
+\chapter{Project Overview}
+\section{Background and Objectives}
+The E-commerce Backend API provides REST endpoints for an online shop: product discovery, account management, direct checkout, inventory reservation, VNPay Sandbox payments and order fulfillment. The objective is a feasible backend MVP planned for 2--3 weeks, prioritizing authorization, monetary accuracy, stock consistency and safe payment processing.
+
+The system is a \textbf{modular monolith}: one NestJS application contains the business modules and accesses PostgreSQL through TypeORM. This report presents the system scope, architecture, data model, functional requirements and business workflows.
+
+\section{Scope and Priorities}
+\begin{tabularx}{\textwidth}{@{}p{24mm}X@{}}
+\toprule
+Priority & Scope \\
+\midrule
+P0 --- mandatory & Authentication and refresh-token rotation; RBAC and ownership; profile/password operations; product browsing, search/filter/sort/pagination and image upload; audited stock adjustments; direct checkout with shipping details; order history and staff fulfillment; VNPay Sandbox and idempotent IPN; expiration scheduler; health check; Swagger, Docker Compose, documentation and testing. \\
+P1 --- optional & Category CRUD, carts, email notifications and durable notification records, advanced filters/reporting and additional integration tests. Email is deferred from the mandatory MVP. \\
+P2 --- excluded & Production payments, refunds, social login, microservices, Redis, message brokers, complex promotions, recommendations, carrier integration, multiple warehouses and advanced analytics. \\
+\bottomrule
+\end{tabularx}
+
+Checkout must work without a P1 cart or category feature. There is no address book or default-address selection: customers enter recipient, phone and delivery-address details directly at checkout. Shipping fees, taxes, discounts and multiple currencies are outside the MVP.
+
+\section{Actors and Authorization Boundaries}
+\begin{tabularx}{\textwidth}{@{}p{23mm}XX@{}}
+\toprule
+Actor & Main capabilities & Restrictions \\
+\midrule
+Guest & Browse active products, search, register and log in. & No protected data access or business mutations. \\
+Customer & Manage own profile/password; submit and inspect own orders; cancel eligible orders; initiate own payments. & No access to other customers' records or catalog, stock and role administration. \\
+Staff & Inspect eligible fulfillment queues, order details and history; advance permitted fulfillment states. & Cannot change prices, stock, roles or payment success. \\
+Admin & Manage products, images, audited inventory and roles; process orders and inspect reconciliation. & Cannot bypass VNPay verification or edit provider results to settle an order. \\
+VNPay / SMTP & Signed payment callbacks / optional P1 email delivery. & External systems, not human authorization roles. \\
+\bottomrule
+\end{tabularx}
+
+Every protected route authenticates an access token and enforces role and, where applicable, ownership on the server. Public registration creates CUSTOMER accounts only. All Staff share one fulfillment permission set for eligible order reads and permitted fulfillment transitions.

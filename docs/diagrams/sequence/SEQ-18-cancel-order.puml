@@ -1,0 +1,63 @@
+@startuml
+title SEQ-18 — Cancel order
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Customer" as Caller
+control "OrdersController" as Entry
+control "JwtAuthGuard" as AuthGuard
+control "RolesGuard" as RoleGuard
+control "OrdersService" as Service
+database "PostgreSQL\norders, payments, products\norder_status_history" as DB
+
+activate Caller
+Caller -> Entry: Cancel unpaid order
+activate Entry
+Entry -> AuthGuard: Verify access token
+activate AuthGuard
+AuthGuard --> Entry: Return authentication outcome
+deactivate AuthGuard
+alt The access token is missing, invalid or expired
+  Entry --> Caller: Invalid or missing access token
+else The access token identifies an authenticated user
+  Entry -> RoleGuard: Check CUSTOMER permission
+  activate RoleGuard
+  RoleGuard --> Entry: Return permission check outcome
+  deactivate RoleGuard
+  alt The user does not have the required permission
+    Entry --> Caller: Permission denied
+  else The role permits this operation
+    Entry -> Service: cancelOwnOrder(customerId, orderId)
+    activate Service
+    Service -> DB: Lock order and attempts; verify owner, state and reservation deadline
+    activate DB
+    DB --> Service: Return cancellation eligibility
+    deactivate DB
+    alt The order is foreign, missing, paid, terminal or past its reservation deadline
+      Service --> Entry: This order cannot be cancelled.
+      Entry --> Caller: This order cannot be cancelled.
+    else The owned order is still awaiting payment before expiry
+      Service -> DB: Cancel only if order remains PENDING_PAYMENT
+      activate DB
+      DB --> Service: Return conditional transition outcome
+      deactivate DB
+      alt A concurrent payment or termination changed the order first
+        Service --> Entry: Order changed concurrently; no cancellation or stock release
+        Entry --> Caller: Order changed concurrently; no cancellation or stock release
+      else The cancellation wins the state change
+        Service -> DB: Expire pending attempts, release stock once and record cancellation history together
+        activate DB
+        DB --> Service: Cancellation effects recorded together
+        deactivate DB
+        Service --> Entry: Order cancelled; reserved stock released
+        Entry --> Caller: Order cancelled; reserved stock released
+      end
+    end
+    deactivate Service
+  end
+end
+deactivate Entry
+deactivate Caller
+@enduml

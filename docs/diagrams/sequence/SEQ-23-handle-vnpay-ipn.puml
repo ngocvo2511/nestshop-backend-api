@@ -1,0 +1,70 @@
+@startuml
+title SEQ-23 — Handle VNPay IPN
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "VNPay Sandbox" as Caller
+control "PaymentsController" as Entry
+control "PaymentsService" as Service
+database "PostgreSQL\norders, payments, order_status_history" as DB
+
+activate Caller
+Caller -> Entry: Send payment IPN
+activate Entry
+Entry -> Service: handleVnpayIpn(callback)
+activate Service
+Service -> Service: Verify VNPay signature and callback format
+alt The signature or callback structure is invalid
+  Service -> Service: Log safe callback diagnostics
+  Service --> Entry: Return provider rejection response
+  Entry --> Caller: Return provider rejection response
+else The signature and callback structure are valid
+  Service -> DB: Lock referenced order and attempt consistently with cancellation and expiry
+  activate DB
+  DB --> Service: Return stored payment and order details
+  deactivate DB
+  Service -> Service: Verify reference, amount, VND currency and provider transaction result
+  alt The reference is unknown or the amount, currency or transaction details do not match
+    Service -> Service: Log safe diagnostics with correlation ID
+    Service -> DB: Record reconciliation outcome without settlement
+    activate DB
+    DB --> Service: Outcome recorded; payment, order and stock unchanged
+    deactivate DB
+    Service --> Entry: Reject mismatched payment details
+    Entry --> Caller: Reject mismatched payment details
+  else This callback repeats an already processed notification
+    Service -> DB: Record duplicate without repeating business effects
+    activate DB
+    DB --> Service: Duplicate recorded
+    deactivate DB
+    Service --> Entry: Acknowledge duplicate; no repeated effects
+    Entry --> Caller: Acknowledge duplicate; no repeated effects
+  else The result is late, conflicting or no longer applicable to the order or attempt
+    Service -> DB: Record safe provider result for reconciliation
+    activate DB
+    DB --> Service: Result recorded; no order reactivation or settlement
+    deactivate DB
+    Service --> Entry: Acknowledge recorded non-settling result
+    Entry --> Caller: Acknowledge recorded non-settling result
+  else The verified successful result applies to the current eligible pending attempt
+    Service -> DB: Set attempt SUCCESS and order PAID with history in one operation\nEnforce one success and retain reservation
+    activate DB
+    DB --> Service: Payment settled and history recorded; no further stock deduction
+    deactivate DB
+    Service --> Entry: Acknowledge payment success
+    Entry --> Caller: Acknowledge payment success
+  else The verified non-success result applies while the order still awaits payment
+    Service -> DB: Mark attempt FAILED and record provider result
+    activate DB
+    DB --> Service: Failure recorded; order PENDING_PAYMENT and stock reserved
+    deactivate DB
+    Service --> Entry: Acknowledge failed attempt; eligible order may retry
+    Entry --> Caller: Acknowledge failed attempt; eligible order may retry
+  end
+end
+deactivate Service
+deactivate Entry
+deactivate Caller
+@enduml

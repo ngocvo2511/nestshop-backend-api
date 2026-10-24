@@ -1,0 +1,92 @@
+erDiagram
+    users {
+        uuid id PK
+        varchar email UK
+        varchar role
+        boolean is_active
+    }
+    refresh_tokens {
+        uuid id PK
+        uuid user_id FK
+        uuid family_id
+        varchar token_hash UK
+        varchar status
+        timestamptz consumed_at
+        timestamptz expires_at
+    }
+    role_change_audit {
+        uuid id PK
+        uuid actor_user_id FK
+        uuid affected_user_id FK
+        varchar old_role
+        varchar new_role
+    }
+    products {
+        uuid id PK
+        varchar name
+        bigint price_vnd
+        integer stock_available
+        boolean is_active
+        varchar image_path
+    }
+    inventory_adjustment_audit {
+        uuid id PK
+        uuid product_id FK
+        uuid actor_user_id FK
+        integer quantity_delta
+        text reason
+    }
+    orders {
+        uuid id PK
+        uuid user_id FK
+        varchar status
+        bigint total_vnd
+        varchar recipient_name
+        varchar recipient_phone
+        varchar address_line
+        varchar province_city
+        timestamptz reservation_expires_at
+    }
+    order_items {
+        uuid id PK
+        uuid order_id FK
+        uuid product_id FK
+        varchar product_name
+        bigint unit_price_vnd
+        integer quantity
+        bigint line_total_vnd
+    }
+    order_status_history {
+        uuid id PK
+        uuid order_id FK
+        uuid actor_user_id FK
+        varchar previous_status
+        varchar new_status
+    }
+    payments {
+        uuid id PK
+        uuid order_id FK
+        varchar provider_reference UK
+        varchar status
+        bigint amount_vnd
+        timestamptz expires_at
+    }
+    payment_notifications {
+        uuid id PK
+        uuid payment_id FK
+        boolean signature_verified
+        varchar outcome
+        timestamptz received_at
+    }
+    users ||--o{ refresh_tokens : "user_id"
+    users ||--o{ role_change_audit : "actor_user_id"
+    users ||--o{ role_change_audit : "affected_user_id"
+    products ||--o{ inventory_adjustment_audit : "product_id"
+    users ||--o{ inventory_adjustment_audit : "actor_user_id"
+    users ||--o{ orders : "user_id"
+    orders ||--o{ order_items : "order_id"
+    products ||--o{ order_items : "product_id"
+    orders ||--o{ order_status_history : "order_id"
+    users |o--o{ order_status_history : "actor_user_id"
+    orders ||--o{ payments : "order_id"
+    payments |o--o{ payment_notifications : "payment_id"

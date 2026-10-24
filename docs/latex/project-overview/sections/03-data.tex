@@ -1,0 +1,45 @@
+\chapter{Data Design}
+\section{Database Overview}
+The P0 database design contains ten tables covering identity, catalog/inventory, purchasing and payments. Carts, categories and email-delivery records are excluded from the current P0 schema.
+
+\begin{figure}[H]\centering
+\includegraphics[width=\textwidth,height=0.75\textheight,keepaspectratio]{images/database/database.png}
+\caption{P0 database model}\label{fig:database}
+\end{figure}
+
+\clearpage\section{Entities and Relationships}
+\begin{longtable}{@{}p{57mm}p{96mm}@{}}
+\toprule
+Table & Responsibility and relationships \\
+\midrule\endhead
+\code{users} & Identity, password hash, role and profile; one user has many orders and refresh tokens. \\
+\code{refresh_tokens} & Token hash, family, expiry and consumed/revoked metadata; distinguishes rotation from logout/password change. \\
+\code{role_change_audit} & Immutable actor, affected user, old/new roles and timestamp. \\
+\code{products} & Integer-VND price, available stock, active flag and relative image path. \\
+\code{inventory_adjustment_audit} & Product, actor, previous/new stock, delta, reason and timestamp for manual Admin adjustments. \\
+\code{orders} & Owner, state, total, recipient/address snapshot and reservation deadline. \\
+\code{order_items} & Order/product references and name, unit-price, quantity and line-total snapshots; many lines per order. \\
+\code{order_status_history} & Immutable transition history with actor or SYSTEM; persisted with the business transaction. \\
+\code{payments} & One row per attempt; many attempts per order, with at most one PENDING and one SUCCESS. \\
+\code{payment_notifications} & Safe IPN receipts including duplicate, invalid, late and unknown-reference cases; distinct from P1 email notifications. \\
+\bottomrule
+\end{longtable}
+
+\section{Critical Integrity Rules}
+\begin{itemize}
+\item Normalized email is unique. Passwords and refresh tokens are never stored in plaintext. Roles are CUSTOMER, STAFF and ADMIN.
+\item Prices, totals and payment amounts are integer VND. Available stock is nonnegative and purchase quantities are positive integers. Binary floating point is not used for money.
+\item PostgreSQL partial unique indexes or equivalent constraints enforce at most one PENDING and one SUCCESS attempt per order.
+\item Order items and shipping details are purchase snapshots. Later profile or catalog changes do not rewrite purchase history.
+\item Role changes and their audits, stock adjustments and their audits, checkout and reservation, settlement and history each commit or roll back together.
+\item Unverified callback data is not accepted payment evidence. Reconciliation logs omit secrets and unnecessarily sensitive raw payloads.
+\end{itemize}
+
+Generated line totals, partial unique indexes and transactional business rules are essential to the physical design.
+
+\section{Inventory and Image Storage}
+Checkout deducts available stock as a reservation in the order transaction. Successful IPN settlement does not deduct it again. Only eligible pre-payment cancellation or order expiration releases it; a conditional state transition determines which transaction may release stock. Attempt expiration alone leaves inventory unchanged.
+
+Initial stock is accepted only during product creation. Subsequent Admin changes require a reasoned quantity delta and audit, rather than a general catalog update.
+
+Images reside in a configured application directory mounted through a named volume. PostgreSQL stores relative paths. If file storage succeeds but its database update fails, the application attempts orphan-file deletion and safely logs a cleanup failure.

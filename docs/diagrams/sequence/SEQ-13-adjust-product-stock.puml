@@ -1,0 +1,60 @@
+@startuml
+title SEQ-13 — Adjust product stock
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Admin" as Caller
+control "InventoryController" as Entry
+control "JwtAuthGuard" as AuthGuard
+control "RolesGuard" as RoleGuard
+control "InventoryService" as Service
+database "PostgreSQL\nproducts, inventory_adjustment_audit" as DB
+
+activate Caller
+Caller -> Entry: Submit stock adjustment and reason
+activate Entry
+Entry -> AuthGuard: Verify access token
+activate AuthGuard
+AuthGuard --> Entry: Return authentication outcome
+deactivate AuthGuard
+alt The access token is missing, invalid or expired
+  Entry --> Caller: Invalid or missing access token
+else The access token identifies an authenticated user
+  Entry -> RoleGuard: Check ADMIN permission
+  activate RoleGuard
+  RoleGuard --> Entry: Return permission check outcome
+  deactivate RoleGuard
+  alt The user does not have the required permission
+    Entry --> Caller: Permission denied
+  else The role permits this operation
+    Entry -> Service: adjustStock(actorId, productId, delta, reason)
+    activate Service
+    Service -> Service: Validate integer stock delta and reason
+    alt The adjustment request is invalid
+      Service --> Entry: Invalid stock delta or missing reason
+      Entry --> Caller: Invalid stock delta or missing reason
+    else The adjustment request is valid
+      Service -> DB: Lock product and read stock
+      activate DB
+      DB --> Service: Return product and stock
+      deactivate DB
+      alt The product is missing or the adjustment would make stock negative
+        Service --> Entry: The stock adjustment is not allowed.
+        Entry --> Caller: The stock adjustment is not allowed.
+      else The resulting stock is valid
+        Service -> DB: Apply stock adjustment and record its audit together
+        activate DB
+        DB --> Service: Stock adjustment and audit recorded
+        deactivate DB
+        Service --> Entry: Stock adjustment and audit saved
+        Entry --> Caller: Stock adjustment and audit saved
+      end
+    end
+    deactivate Service
+  end
+end
+deactivate Entry
+deactivate Caller
+@enduml

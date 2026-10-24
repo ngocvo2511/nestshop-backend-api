@@ -1,0 +1,123 @@
+@startuml
+title SEQ-31 — Send email notification (P1)
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Business event / startup recovery" as Caller
+control "BusinessService" as Business
+control "NotificationService" as Service
+participant "SMTP provider (P1)" as SMTP
+database "PostgreSQL\nbusiness records, notification_deliveries" as DB
+
+activate Caller
+alt A selected business event occurs
+  Caller -> Business: Perform selected business operation
+  activate Business
+  Business -> DB: Record business change
+  activate DB
+  DB --> Business: Business change recorded
+  deactivate DB
+  Business -> Service: createEvent(eventKey, validatedAccountEmail, safePayload)
+  activate Service
+  Service -> DB: Record unique pending notification event with the business change
+  activate DB
+  DB --> Service: Notification event recorded with the business change
+  deactivate DB
+  Service --> Business: Business change and notification event saved together
+  deactivate Service
+  Business -> Service: deliverEligibleEvents(eventId)
+  activate Service
+  alt SMTP settings are missing
+    Service -> Service: Disable delivery and log missing SMTP configuration
+    Service --> Business: Email disabled; SMTP not configured
+    Business --> Caller: Business operation accepted; Email disabled; SMTP not configured
+  else SMTP is configured
+    Service -> DB: Claim event within retry limits and recovery lease
+    activate DB
+    DB --> Service: Return claim outcome
+    deactivate DB
+    alt Another process already claimed or sent the event
+      Service --> Business: Skip already handled event
+      Business --> Caller: Business operation accepted; Skip already handled event
+    else This process claims the event
+      Service -> Service: Build safe email for validated account recipient
+      Service -> SMTP: Send email
+      activate SMTP
+      SMTP --> Service: Return SMTP delivery outcome
+      deactivate SMTP
+      alt The provider accepts the email
+        Service -> DB: Record successful delivery
+        activate DB
+        DB --> Service: Return delivery persistence outcome
+        deactivate DB
+        alt The successful delivery is recorded
+          Service --> Business: Email sent
+          Business --> Caller: Business operation accepted; Email sent
+        else The successful delivery cannot be recorded
+          Service -> Service: Keep event recoverable; accepted email may be resent
+          Service --> Business: SMTP accepted email; delivery record unconfirmed
+          Business --> Caller: Business operation accepted; SMTP accepted email; delivery record unconfirmed
+        end
+      else The provider rejects the email or the request times out
+        Service -> DB: Record delivery failure for bounded retry
+        activate DB
+        DB --> Service: Delivery failure recorded
+        deactivate DB
+        Service --> Business: Email failed; retry policy applies
+        Business --> Caller: Business operation accepted; Email failed; retry policy applies
+      end
+    end
+  end
+  deactivate Service
+  deactivate Business
+else Application startup or a configured retry triggers recovery
+  Caller -> Service: recoverEligibleEvents()
+  activate Service
+  Service -> DB: Find pending, retryable failed and stale sending events
+  activate DB
+  DB --> Service: Return eligible events within retry bounds
+  deactivate DB
+  alt No event is eligible
+    Service --> Caller: No eligible notification events
+  else One or more events are eligible
+    loop For each eligible notification event
+      alt SMTP settings are missing
+        Service -> Service: Disable delivery and log missing SMTP configuration
+      else SMTP is configured
+        Service -> DB: Claim event within retry limits and recovery lease
+        activate DB
+        DB --> Service: Return claim outcome
+        deactivate DB
+        alt Another process already claimed or sent the event
+        else This process claims the event
+          Service -> Service: Build safe email for validated account recipient
+          Service -> SMTP: Send email
+          activate SMTP
+          SMTP --> Service: Return SMTP delivery outcome
+          deactivate SMTP
+          alt The provider accepts the email
+            Service -> DB: Record successful delivery
+            activate DB
+            DB --> Service: Return delivery persistence outcome
+            deactivate DB
+            alt The successful delivery is recorded
+            else The successful delivery cannot be recorded
+              Service -> Service: Keep event recoverable; accepted email may be resent
+            end
+          else The provider rejects the email or the request times out
+            Service -> DB: Record delivery failure for bounded retry
+            activate DB
+            DB --> Service: Delivery failure recorded
+            deactivate DB
+          end
+        end
+      end
+    end
+    Service --> Caller: Recovery complete; business records unchanged
+  end
+  deactivate Service
+end
+deactivate Caller
+@enduml

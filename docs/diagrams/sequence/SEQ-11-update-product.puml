@@ -1,0 +1,56 @@
+@startuml
+title SEQ-11 — Update product
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Admin" as Caller
+control "ProductsController" as Entry
+control "JwtAuthGuard" as AuthGuard
+control "RolesGuard" as RoleGuard
+control "ProductsService" as Service
+database "PostgreSQL\nproducts" as DB
+
+activate Caller
+Caller -> Entry: Submit product changes
+activate Entry
+Entry -> AuthGuard: Verify access token
+activate AuthGuard
+AuthGuard --> Entry: Return authentication outcome
+deactivate AuthGuard
+alt The access token is missing, invalid or expired
+  Entry --> Caller: Invalid or missing access token
+else The access token identifies an authenticated user
+  Entry -> RoleGuard: Check ADMIN permission
+  activate RoleGuard
+  RoleGuard --> Entry: Return permission check outcome
+  deactivate RoleGuard
+  alt The user does not have the required permission
+    Entry --> Caller: Permission denied
+  else The role permits this operation
+    Entry -> Service: update(productId, dto)
+    activate Service
+    Service -> Service: Validate catalog fields and integer VND price; reject stock changes
+    alt The submitted changes are invalid
+      Service --> Entry: Invalid catalog changes; stock requires adjustment operation
+      Entry --> Caller: Invalid catalog changes; stock requires adjustment operation
+    else The submitted changes are allowed
+      Service -> DB: Update allowed non-stock product fields
+      activate DB
+      DB --> Service: Return product update outcome
+      deactivate DB
+      alt The product is updated
+        Service --> Entry: The product has been updated.
+        Entry --> Caller: The product has been updated.
+      else The product does not exist
+        Service --> Entry: The requested product was not found.
+        Entry --> Caller: The requested product was not found.
+      end
+    end
+    deactivate Service
+  end
+end
+deactivate Entry
+deactivate Caller
+@enduml

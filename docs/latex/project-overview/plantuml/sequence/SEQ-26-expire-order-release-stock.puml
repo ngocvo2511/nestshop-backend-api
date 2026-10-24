@@ -1,0 +1,45 @@
+@startuml
+title SEQ-26 — Expire order and release stock
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Application startup / timer" as Caller
+control "ExpirationScheduler" as Entry
+control "OrdersService" as Service
+database "PostgreSQL\norders, payments, products\norder_status_history" as DB
+
+activate Caller
+Caller -> Entry: Run order expiry scan at startup or timer
+activate Entry
+Entry -> Service: expireDueOrders(now)
+activate Service
+Service -> DB: Find unpaid orders past the 60-minute reservation deadline
+activate DB
+DB --> Service: Return candidate orders
+deactivate DB
+loop For each candidate order
+  Service -> DB: Lock order and attempts consistently with IPN and cancellation
+  activate DB
+  DB --> Service: Return order and payment states
+  deactivate DB
+  Service -> DB: Expire only overdue, unsettled PENDING_PAYMENT orders
+  activate DB
+  DB --> Service: Return conditional expiry outcome
+  deactivate DB
+  alt This scan changes the order to EXPIRED
+    Service -> DB: Expire pending attempts, release stock once and record SYSTEM expiry together
+    activate DB
+    DB --> Service: Order expiry effects recorded together
+    deactivate DB
+  else The order was already paid, cancelled or expired, or is no longer due
+    Service -> Service: Keep stock unchanged; prevent double release
+  end
+end
+Service --> Entry: Expiry scan complete
+deactivate Service
+Entry --> Caller: Expiry scan complete
+deactivate Entry
+deactivate Caller
+@enduml

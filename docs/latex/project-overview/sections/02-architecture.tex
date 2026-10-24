@@ -1,0 +1,45 @@
+\chapter{System Architecture}
+\section{Architectural Principles}
+One NestJS application implements the P0 business capabilities. Controllers, services and modules collaborate within the same process; PostgreSQL provides transactions and integrity constraints. The MVP introduces no microservices, broker, Redis instance or separate worker.
+
+The following views progress from broad context to internal structure: System Context identifies actors and external systems; Container shows runtime and storage boundaries; Backend Components assigns responsibilities inside the backend.
+
+\diagram{System Context}{fig:context}{Four human actors use the API. The customer opens a VNPay payment URL, and VNPay sends server-side IPN callbacks. SMTP is an optional P1 dependency.}{images/architecture/system-context.png}
+
+\diagram{Container}{fig:container}{The NestJS backend accesses PostgreSQL and local product-image storage. Local File Storage represents a mounted directory or volume, not a separately executing service.}{images/architecture/containers.png}
+
+\diagram{Backend Components}{fig:components}{All P0 modules belong to one application. The scheduler invokes Payments and Orders expiration operations; scheduled jobs do not require HTTP controllers.}{images/architecture/backend-components.png}
+
+\clearpage\section{Module Responsibilities}
+\begin{tabularx}{\textwidth}{@{}p{34mm}X@{}}
+\toprule
+Module & Responsibility \\
+\midrule
+Auth & JWT access, login, refresh rotation, replay detection and session revocation. \\
+Users & Profile/password operations and dedicated Admin role reads/changes with atomic audit. \\
+Products & Public catalog, integer-VND prices, active status, image upload and references. \\
+Inventory & Transactional reservation/release and audited Admin quantity adjustments. \\
+Orders & Checkout, snapshots, history, pre-payment cancellation and fulfillment. \\
+Payments & Locally signed URLs, verified IPN, non-settling browser return and read-only reconciliation. \\
+ExpirationScheduler & Startup recovery and periodic attempt/order scans inside the backend process. \\
+Health & Lightweight public health endpoint without secret exposure. \\
+Optional P1 & Categories, Cart and Notifications/Email use the same backend and database if selected. \\
+\bottomrule
+\end{tabularx}
+
+\section{Technology and Deployment}
+\begin{tabularx}{\textwidth}{@{}p{38mm}X@{}}
+\toprule
+Layer & Technology / convention \\
+\midrule
+Application & NestJS, TypeScript; class-validator/class-transformer DTO validation. \\
+Persistence & TypeORM and PostgreSQL; transactions, row locks or conditional updates. \\
+Authentication & JWT access/refresh tokens; bcrypt or equivalent password hashes; hashed refresh tokens only. \\
+Uploads & Multer; JPEG, PNG or WebP up to 5 MiB; server-generated filenames. \\
+Integrations & VNPay Sandbox; SMTP/Nodemailer reserved for future optional P1 email. \\
+Documentation / tests & Swagger/OpenAPI; Jest and a real-PostgreSQL integration suite. \\
+Environment & Docker Compose, environment configuration and a named upload volume. \\
+\bottomrule
+\end{tabularx}
+
+The proposed API base path is \code{/api/v1}. Swagger describes routes, security requirements, request and response schemas, and expected errors.

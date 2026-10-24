@@ -1,0 +1,72 @@
+\documentclass[11pt,a4paper,oneside]{report}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[utf8]{inputenc}
+  \usepackage[T1]{fontenc}
+  \DeclareUnicodeCharacter{2192}{\ensuremath{\rightarrow}}
+\else
+  \usepackage{fontspec}
+  \setmainfont{texgyretermes}[Extension=.otf,UprightFont=*-regular,BoldFont=*-bold,ItalicFont=*-italic,BoldItalicFont=*-bolditalic]
+  \setsansfont{texgyreheros}[Extension=.otf,UprightFont=*-regular,BoldFont=*-bold,ItalicFont=*-italic,BoldItalicFont=*-bolditalic]
+  \setmonofont{texgyrecursor}[Extension=.otf,UprightFont=*-regular,BoldFont=*-bold,ItalicFont=*-italic,BoldItalicFont=*-bolditalic]
+\fi
+\usepackage[english]{babel}
+\usepackage[a4paper,margin=23mm,headheight=15pt]{geometry}
+\usepackage{graphicx,booktabs,tabularx,longtable,array}
+\usepackage{xcolor,enumitem,caption,float,fancyhdr}
+\usepackage{hyperref}
+\definecolor{navy}{HTML}{124578}
+\definecolor{muted}{HTML}{526477}
+\hypersetup{colorlinks=true,linkcolor=navy,urlcolor=navy,pdftitle={Project Overview - E-commerce Backend API},pdfauthor={Project Documentation}}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\setlength{\emergencystretch}{3em}
+\renewcommand{\arraystretch}{1.2}
+\setlist[itemize]{nosep,topsep=4pt,leftmargin=*}
+\setlist[enumerate]{nosep,topsep=4pt,leftmargin=*}
+\captionsetup{font=small,labelfont=bf}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small E-commerce Backend API}
+\fancyhead[R]{\small Project Overview}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+\newcommand{\code}[1]{{\small\ttfamily\detokenize{#1}}}
+\newcommand{\diagram}[4]{%
+  \clearpage\section{#1}\label{#2}
+  {#3\par}
+  \begin{figure}[H]\centering
+  \includegraphics[width=\textwidth,height=0.73\textheight,keepaspectratio]{#4}
+  \caption{#1}
+  \end{figure}
+}
+\begin{document}
+\hypersetup{pageanchor=false}
+\begin{titlepage}
+\thispagestyle{empty}
+{\color{navy}\rule{\textwidth}{2pt}}
+\vspace{18mm}
+{\Large PROJECT OVERVIEW DOCUMENT\par}
+\vspace{8mm}
+{\Huge\bfseries\color{navy} E-commerce\\[4pt] Backend API\par}
+\vspace{7mm}
+{\LARGE Project Overview\par}
+\vspace{10mm}
+{\large Vo Xuan Ngoc\par}
+\vspace{6mm}
+{\large 29 October 2026\par}
+\vfill
+\end{titlepage}
+\pagenumbering{roman}
+\hypersetup{pageanchor=true}
+\tableofcontents
+\clearpage\pagenumbering{arabic}
+\input{sections/01-overview}
+\input{sections/02-functional-requirements}
+\input{sections/02-architecture}
+\input{sections/03-data}
+\input{sections/04-workflows}
+\input{sections/05-quality}
+\appendix
+\input{sections/06-sequences}
+\end{document}

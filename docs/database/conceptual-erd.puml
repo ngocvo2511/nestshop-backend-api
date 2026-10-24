@@ -1,0 +1,98 @@
+@startchen
+left to right direction
+
+' Conceptual ERD: entities and relationships only; no columns.
+' (min,max) beside an entity is its participation in that relationship.
+' Example: USER (0,N) PLACES; ORDER (1,1) PLACES.
+
+entity "User" as USER {
+}
+
+entity "Refresh Token" as REFRESH_TOKEN {
+}
+
+entity "Role Change Audit" as ROLE_AUDIT {
+}
+
+entity "Product" as PRODUCT {
+}
+
+entity "Inventory Adjustment" as STOCK_AUDIT {
+}
+
+entity "Order" as ORDER {
+}
+
+entity "Order Item" as ORDER_ITEM {
+}
+
+entity "Order Status History" as STATUS_HISTORY {
+}
+
+entity "Payment Attempt" as PAYMENT {
+}
+
+entity "Payment Notification" as IPN {
+}
+
+relationship "Owns tokens" as OWNS {
+}
+USER -(0,N)- OWNS
+OWNS -(1,1)- REFRESH_TOKEN
+
+relationship "Performs role change" as CHANGES_ROLE {
+}
+USER -(0,N)- CHANGES_ROLE
+CHANGES_ROLE -(1,1)- ROLE_AUDIT
+
+relationship "Is subject of role change" as SUBJECT {
+}
+USER -(0,N)- SUBJECT
+SUBJECT -(1,1)- ROLE_AUDIT
+
+relationship "Places" as PLACES {
+}
+USER -(0,N)- PLACES
+PLACES -(1,1)- ORDER
+
+relationship "Has stock adjustments" as HAS_ADJUSTMENT {
+}
+PRODUCT -(0,N)- HAS_ADJUSTMENT
+HAS_ADJUSTMENT -(1,1)- STOCK_AUDIT
+
+relationship "Performs stock adjustment" as ADJUSTS {
+}
+USER -(0,N)- ADJUSTS
+ADJUSTS -(1,1)- STOCK_AUDIT
+
+relationship "Contains" as CONTAINS {
+}
+ORDER -(1,N)- CONTAINS
+CONTAINS -(1,1)- ORDER_ITEM
+
+relationship "Is purchased as" as PURCHASED_AS {
+}
+PRODUCT -(0,N)- PURCHASED_AS
+PURCHASED_AS -(1,1)- ORDER_ITEM
+
+relationship "Has transition history" as HAS_HISTORY {
+}
+ORDER -(1,N)- HAS_HISTORY
+HAS_HISTORY -(1,1)- STATUS_HISTORY
+
+relationship "Acts on transition" as ACTS {
+}
+USER -(0,N)- ACTS
+ACTS -(0,1)- STATUS_HISTORY
+
+relationship "Has payment attempts" as HAS_PAYMENT {
+}
+ORDER -(0,N)- HAS_PAYMENT
+HAS_PAYMENT -(1,1)- PAYMENT
+
+relationship "Receives notifications" as RECEIVES {
+}
+PAYMENT -(0,N)- RECEIVES
+RECEIVES -(0,1)- IPN
+
+@endchen

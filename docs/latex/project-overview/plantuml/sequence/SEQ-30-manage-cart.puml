@@ -1,0 +1,51 @@
+@startuml
+title SEQ-30 — Manage cart (P1)
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Customer" as Caller
+control "CartsController" as Entry
+control "JwtAuthGuard" as AuthGuard
+control "RolesGuard" as RoleGuard
+control "CartsService" as Service
+database "PostgreSQL\ncarts, cart_items" as DB
+
+activate Caller
+Caller -> Entry: Manage cart items
+activate Entry
+Entry -> AuthGuard: Verify access token
+activate AuthGuard
+AuthGuard --> Entry: Return authentication outcome
+deactivate AuthGuard
+alt The access token is missing, invalid or expired
+  Entry --> Caller: Invalid or missing access token
+else The access token identifies an authenticated user
+  Entry -> RoleGuard: Check CUSTOMER permission
+  activate RoleGuard
+  RoleGuard --> Entry: Return permission check outcome
+  deactivate RoleGuard
+  alt The user does not have the required permission
+    Entry --> Caller: Permission denied
+  else The role permits this operation
+    Entry -> Service: manageOwnCart(customerId, operation, dto)
+    activate Service
+    Service -> Service: Validate cart request and ownership
+    alt The request is invalid or the target belongs to another customer
+      Service --> Entry: The requested cart operation is unavailable.
+      Entry --> Caller: The requested cart operation is unavailable.
+    else The requested cart records belong to this customer
+      Service -> DB: Read or update own cart; do not reserve prices or stock
+      activate DB
+      DB --> Service: Return cart operation outcome
+      deactivate DB
+      Service --> Entry: Return cart result; checkout revalidates prices and stock
+      Entry --> Caller: Return cart result; checkout revalidates prices and stock
+    end
+    deactivate Service
+  end
+end
+deactivate Entry
+deactivate Caller
+@enduml

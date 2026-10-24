@@ -1,0 +1,46 @@
+@startuml
+title SEQ-25 — Expire payment attempt
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Application startup / timer" as Caller
+control "ExpirationScheduler" as Entry
+control "PaymentsService" as Service
+database "PostgreSQL\norders, payments" as DB
+
+activate Caller
+Caller -> Entry: Run attempt expiry scan at startup or timer
+activate Entry
+Entry -> Service: expireDueAttempts(now)
+activate Service
+Service -> DB: Find pending attempts past their configured 20-minute target deadline
+activate DB
+DB --> Service: Return due attempts
+deactivate DB
+loop For each due payment attempt
+  Service -> Service: Check safe expiry under verified provider rules
+  alt Only local time has elapsed and safe expiry remains unresolved
+    Service -> Service: Keep attempt pending when provider finality is unresolved
+  else The attempt can safely expire under verified integration rules
+    Service -> DB: Lock order and attempt; recheck state and deadline
+    activate DB
+    DB --> Service: Return current expiry eligibility
+    deactivate DB
+    alt The attempt is still pending and its order remains eligible
+      Service -> DB: Expire attempt only; keep order pending and stock reserved
+      activate DB
+      DB --> Service: Attempt expiry recorded
+      deactivate DB
+    else Another callback or termination already changed the state
+      Service -> Service: Keep attempt and stock unchanged
+    end
+  end
+end
+Service --> Entry: Expiry scan complete
+deactivate Service
+Entry --> Caller: Expiry scan complete
+deactivate Entry
+deactivate Caller
+@enduml

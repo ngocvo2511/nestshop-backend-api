@@ -1,0 +1,49 @@
+\chapter{Business Workflows and State Lifecycles}
+\section{Authentication, Profiles and Roles}
+Registration creates a CUSTOMER account with a secure password hash. Valid login issues access and refresh tokens. Rotation permits one concurrent winner for a refresh token. Reusing a token consumed by successful rotation is replay and revokes its entire family. Logout/password-change revocation is rejected on reuse without being misclassified as a new replay.
+
+Logout revokes the current family; password change verifies the current password and atomically revokes all families. Stateless access JWTs can remain valid until configured expiry. Profile viewing and updating are separate operations; role, account-state and authentication fields cannot be mass-assigned. See SEQ-01--07, SEQ-14 and SEQ-32.
+
+\section{Catalog, Checkout and Fulfillment}
+Guests/customers see active products only. Filters, sorting and offset/limit inputs are validated. Admin catalog changes, uploads and stock adjustments use dedicated authorized operations.
+
+Checkout accepts product IDs/quantities and inline shipping details. The server reloads current prices, availability and stock, calculates integer-VND totals and saves snapshots. Order creation, items, initial history and reservation are one transaction with no partial results on failure. Customers inspect only their own orders. Staff/Admin read eligible queues and advance permitted fulfillment steps. See SEQ-08--21.
+
+\section{Order Lifecycle}
+\begin{tabularx}{\textwidth}{@{}p{54mm}X@{}}
+\toprule
+State / transition & Preconditions and effects \\
+\midrule
+Initial PENDING\_PAYMENT & Valid checkout saves snapshots/history and reserves inventory for the configurable 60-minute default. \\
+PENDING\_PAYMENT → PAID & Applicable verified successful IPN; attempt/order remain eligible; no further stock deduction. \\
+PAID → PROCESSING & Staff/Admin starts fulfillment. \\
+PROCESSING → SHIPPED & Staff/Admin records shipment. \\
+SHIPPED → COMPLETED & Staff/Admin records completion. \\
+PENDING\_PAYMENT → CANCELLED & Owner cancels before payment and expiry; pending attempts expire and stock is released once. \\
+PENDING\_PAYMENT → EXPIRED & Scheduler finds the reservation overdue; pending attempts expire, history is written and stock is released once. \\
+\bottomrule
+\end{tabularx}
+
+There is no NEW order state. Backward/skipped fulfillment steps and paid-order cancellation are rejected; refunds are excluded. Callback, cancellation and expiration transactions serialize on the relevant rows. The first transaction satisfying its preconditions wins; later transactions cannot repeat stock or settlement effects.
+
+\section{Payment Initiation and Confirmation}
+The owner requests payment for an eligible, non-expired PENDING\_PAYMENT order. The backend checks existing attempts and reuses a safely valid pending URL or returns conflict. A new attempt is created only when none is pending and earlier attempts genuinely terminated. The persisted order total is authoritative. URL signing is local to the backend; the customer browser opens the resulting URL at VNPay.
+
+IPN is the settlement boundary: verify signature, reference, amount/currency and applicable result fields before updating state. Browser return cannot confirm payment. Duplicate callbacks do not repeat effects; late callbacks for terminal orders/attempts are retained for reconciliation. Admin inspection remains read-only. See SEQ-22--24 and SEQ-27.
+
+\section{Independent Expiration Deadlines}
+\begin{tabularx}{\textwidth}{@{}p{37mm}p{26mm}X@{}}
+\toprule
+Object & Default & Effect \\
+\midrule
+Payment attempt & 20-minute target & When safe expiry is established, only the attempt becomes EXPIRED. The order remains PENDING\_PAYMENT and stock remains reserved. \\
+Order reservation & 60 minutes & A still-pending order becomes EXPIRED; pending attempts expire, history is recorded and stock is released exactly once. \\
+\bottomrule
+\end{tabularx}
+
+The scheduler performs startup recovery and periodic scans. Deadlines are persisted per record rather than reconstructed from changed configuration. If safe provider finality remains unresolved, retain PENDING and do not create a replacement attempt. Late callbacks never reactivate an order or alter inventory automatically. See SEQ-25--26.
+
+\section{Payment and Session States}
+Payment attempts use PENDING, SUCCESS, FAILED and EXPIRED independently of fulfillment progress. FAILED may permit another attempt while the order remains eligible. Only applicable verified IPN can record SUCCESS, with at most one successful settlement per order.
+
+Refresh tokens use ACTIVE, REVOKED and EXPIRED plus consumed/revoked metadata. Future P1 email delivery uses PENDING, SENDING, SENT and FAILED: durable events commit with business state and delivery starts after commit. Exactly-once SMTP delivery is not guaranteed across a crash after provider acceptance but before SENT persistence.

@@ -1,0 +1,42 @@
+@startuml
+title SEQ-06 — Update own profile
+hide footbox
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 300
+skinparam responseMessageBelowArrow true
+actor "Customer" as Caller
+control "UsersController" as Entry
+control "JwtAuthGuard" as AuthGuard
+control "UsersService" as Service
+database "PostgreSQL\nusers" as DB
+
+activate Caller
+Caller -> Entry: Update own profile
+activate Entry
+Entry -> AuthGuard: Verify access token
+activate AuthGuard
+AuthGuard --> Entry: Return authentication outcome
+deactivate AuthGuard
+alt The access token is missing, invalid or expired
+  Entry --> Caller: Invalid or missing access token
+else The access token identifies an authenticated user
+  Entry -> Service: updateProfile(userId, dto)
+  activate Service
+  Service -> Service: Validate allowed profile fields
+  alt The submitted profile information is invalid
+    Service --> Entry: Invalid or protected profile fields
+    Entry --> Caller: Invalid or protected profile fields
+  else The submitted profile fields are allowed
+    Service -> DB: Update allowed profile fields
+    activate DB
+    DB --> Service: Return updated profile
+    deactivate DB
+    Service --> Entry: Return updated profile
+    Entry --> Caller: Return updated profile
+  end
+  deactivate Service
+end
+deactivate Entry
+deactivate Caller
+@enduml
