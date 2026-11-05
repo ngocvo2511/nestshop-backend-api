@@ -8,7 +8,7 @@ export function configureOpenApi(app: INestApplication): void {
     .setTitle('E-commerce Backend API')
     .setVersion('1.0.0')
     .setDescription(
-      'Account and catalog APIs with validated images and audited inventory. Checkout and payments are added separately.',
+      'Day8: M2 account/catalog/image/inventory scope plus CUSTOMER atomic checkout and reservation. Order reads/cancellation, payment and expiration remain future work. P0 contracts are in docs/srs/02-api-design.md.',
     )
     .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' })
     .build();
